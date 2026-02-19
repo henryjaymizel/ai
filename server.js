@@ -182,6 +182,11 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, 'public'), { etag: false, lastModified: false }));
 
+// Serve the app on /app too, to bypass any proxy cache on /
+app.get('/app', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // List all stored API keys (masked)
 app.get('/api/keys', (req, res) => {
   const keys = loadKeys();
