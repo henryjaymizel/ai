@@ -457,7 +457,7 @@
   </div>
 
   <div class="container">
-    <div id="key-section" class="hidden">
+    <div id="key-section">
       <div class="key-banner">
         <p><strong>Enter your Odds API key</strong> &mdash; Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:var(--green)">the-odds-api.com</a></p>
         <div class="key-input-row">
@@ -515,10 +515,11 @@
         const data = await res.json();
 
         if (data.error) {
+          document.getElementById('key-section').classList.remove('hidden');
           content.innerHTML = `<div class="error-box">
             <p><strong>Error:</strong> ${escapeHtml(data.error)}</p>
-            <p style="margin-top:8px">Set your API key: <code>ODDS_API_KEY=your_key npm start</code></p>
-            <p style="margin-top:4px"><a href="https://the-odds-api.com" target="_blank">Get a free API key</a></p>
+            <p style="margin-top:8px">Use the API Key form above to add your key, or get a free one at
+              <a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a></p>
           </div>`;
           return;
         }
@@ -671,8 +672,8 @@
       try {
         const res = await fetch('/api/key-status');
         const data = await res.json();
-        if (!data.hasKey) {
-          document.getElementById('key-section').classList.remove('hidden');
+        if (data.hasKey) {
+          document.getElementById('key-section').classList.add('hidden');
         }
       } catch (e) {}
     }
