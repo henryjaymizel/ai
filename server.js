@@ -20,44 +20,38 @@ const PORT = process.env.PORT || 3000;
 // The Odds API - free tier (500 req/month)
 const ODDS_API_KEY = process.env.ODDS_API_KEY || '';
 
-// All soccer leagues supported by The Odds API
-const SOCCER_LEAGUES = [
-  'soccer_epl',
-  'soccer_spain_la_liga',
-  'soccer_germany_bundesliga',
-  'soccer_italy_serie_a',
-  'soccer_france_ligue_one',
-  'soccer_uefa_champs_league',
-  'soccer_uefa_europa_league',
-  'soccer_brazil_campeonato',
-  'soccer_netherlands_eredivisie',
-  'soccer_portugal_primeira_liga',
-  'soccer_turkey_super_league',
-  'soccer_usa_mls',
-  'soccer_mexico_ligamx',
-  'soccer_efl_champ',
-  'soccer_argentina_primera_division',
-  'soccer_uefa_europa_conference_league',
-];
+// Fetch the active soccer league list dynamically from the API
+let SOCCER_LEAGUES = [];
+let LEAGUE_NAMES = {};
 
-const LEAGUE_NAMES = {
-  soccer_epl: 'English Premier League',
-  soccer_spain_la_liga: 'La Liga (Spain)',
-  soccer_germany_bundesliga: 'Bundesliga (Germany)',
-  soccer_italy_serie_a: 'Serie A (Italy)',
-  soccer_france_ligue_one: 'Ligue 1 (France)',
-  soccer_uefa_champs_league: 'UEFA Champions League',
-  soccer_uefa_europa_league: 'UEFA Europa League',
-  soccer_brazil_campeonato: 'Campeonato Brasileiro',
-  soccer_netherlands_eredivisie: 'Eredivisie (Netherlands)',
-  soccer_portugal_primeira_liga: 'Primeira Liga (Portugal)',
-  soccer_turkey_super_league: 'Super Lig (Turkey)',
-  soccer_usa_mls: 'MLS (USA)',
-  soccer_mexico_ligamx: 'Liga MX (Mexico)',
-  soccer_efl_champ: 'EFL Championship (England)',
-  soccer_argentina_primera_division: 'Primera Division (Argentina)',
-  soccer_uefa_europa_conference_league: 'UEFA Conference League',
-};
+async function loadLeagues() {
+  if (!ODDS_API_KEY) return;
+  try {
+    const sports = await fetchJSON(`https://api.the-odds-api.com/v4/sports/?apiKey=${ODDS_API_KEY}`);
+    for (const s of sports) {
+      if (s.key.startsWith('soccer_') && s.active && !s.has_outrights) {
+        SOCCER_LEAGUES.push(s.key);
+        LEAGUE_NAMES[s.key] = s.title;
+      }
+    }
+    console.log(`Loaded ${SOCCER_LEAGUES.length} active soccer leagues`);
+  } catch (err) {
+    console.error('Failed to load leagues:', err.message);
+    // Fallback to hardcoded list
+    SOCCER_LEAGUES = [
+      'soccer_epl', 'soccer_spain_la_liga', 'soccer_germany_bundesliga',
+      'soccer_italy_serie_a', 'soccer_france_ligue_one', 'soccer_uefa_champs_league',
+      'soccer_uefa_europa_league', 'soccer_efl_champ', 'soccer_usa_mls',
+    ];
+    LEAGUE_NAMES = {
+      soccer_epl: 'EPL', soccer_spain_la_liga: 'La Liga',
+      soccer_germany_bundesliga: 'Bundesliga', soccer_italy_serie_a: 'Serie A',
+      soccer_france_ligue_one: 'Ligue 1', soccer_uefa_champs_league: 'Champions League',
+      soccer_uefa_europa_league: 'Europa League', soccer_efl_champ: 'Championship',
+      soccer_usa_mls: 'MLS',
+    };
+  }
+}
 
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
@@ -85,25 +79,34 @@ function fetchJSON(url) {
   });
 }
 
-function getTomorrowRange() {
+function getDateRange(daysAhead) {
   const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
 
-  const dayAfter = new Date(tomorrow);
-  dayAfter.setDate(dayAfter.getDate() + 1);
+  // Start: tomorrow at midnight
+  const start = new Date(now);
+  start.setDate(start.getDate() + 1);
+  start.setHours(0, 0, 0, 0);
 
-  return {
-    start: tomorrow.toISOString(),
-    end: dayAfter.toISOString(),
-    label: tomorrow.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }),
-  };
+  // End: daysAhead days from now (default 1 = just tomorrow)
+  const end = new Date(start);
+  end.setDate(end.getDate() + (daysAhead || 1));
+
+  const startLabel = start.toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  });
+  const endDate = new Date(end);
+  endDate.setDate(endDate.getDate() - 1);
+  const endLabel = endDate.toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  });
+
+  const label = daysAhead > 1
+    ? `${startLabel} – ${endLabel}`
+    : start.toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      });
+
+  return { start: start.toISOString(), end: end.toISOString(), label };
 }
 
 /**
@@ -204,7 +207,8 @@ app.get('/api/value-bets', async (req, res) => {
     });
   }
 
-  const { start, end, label } = getTomorrowRange();
+  const days = Math.min(Math.max(parseInt(req.query.days) || 1, 1), 7);
+  const { start, end, label } = getDateRange(days);
 
   try {
     // Fetch odds for all soccer leagues in parallel
@@ -255,9 +259,11 @@ app.get('/api/value-bets', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Soccer Betting Value app running at http://localhost:${PORT}`);
-  if (!ODDS_API_KEY) {
-    console.log('WARNING: No ODDS_API_KEY set. Get a free key at https://the-odds-api.com');
-  }
+loadLeagues().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Soccer Betting Value app running at http://localhost:${PORT}`);
+    if (!ODDS_API_KEY) {
+      console.log('WARNING: No ODDS_API_KEY set. Get a free key at https://the-odds-api.com');
+    }
+  });
 });
