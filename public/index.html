@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soccer Betting Value Finder</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d28;
+      --surface2: #242836;
+      --border: #2e3345;
+      --text: #e1e4ed;
+      --text-dim: #8b90a0;
+      --accent: #6c5ce7;
+      --green: #00b894;
+      --green-dim: #00b89433;
+      --yellow: #fdcb6e;
+      --yellow-dim: #fdcb6e33;
+      --red: #e17055;
+      --red-dim: #e1705533;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1a1d28 0%, #242836 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 0;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .header h1 span { color: var(--green); }
+
+    .header p {
+      color: var(--text-dim);
+      font-size: 14px;
+    }
+
+    .date-banner {
+      text-align: center;
+      padding: 16px;
+      margin: 24px 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      color: var(--text-dim);
+    }
+
+    .date-banner strong { color: var(--text); }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      text-align: center;
+    }
+
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--green);
+    }
+
+    .stat-card .label {
+      font-size: 12px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    .match-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .match-card:hover { border-color: var(--accent); }
+
+    .match-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    .match-teams {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .match-teams .vs { color: var(--text-dim); font-weight: 400; margin: 0 6px; }
+
+    .match-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .league-badge {
+      background: var(--surface2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .value-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .value-high {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+
+    .value-medium {
+      background: var(--yellow-dim);
+      color: var(--yellow);
+    }
+
+    .value-low {
+      background: var(--red-dim);
+      color: var(--red);
+    }
+
+    .match-body { padding: 16px 20px; }
+
+    .best-bet {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .best-bet-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--green);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .best-bet-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .best-bet-outcome {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .best-bet-details {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .detail-item {
+      text-align: center;
+    }
+
+    .detail-item .val {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .detail-item .lbl {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .outcomes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .outcome-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .outcome-name {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .outcome-stats {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+
+    .outcome-stats .val { color: var(--text); font-weight: 500; }
+
+    .odds-bar {
+      height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+      margin-top: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .odds-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+
+    .bookmaker-odds {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .bk-chip {
+      font-size: 11px;
+      background: var(--surface2);
+      padding: 3px 8px;
+      border-radius: 4px;
+      color: var(--text-dim);
+    }
+
+    .bk-chip.best {
+      background: var(--green-dim);
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 80px 20px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      background: var(--red-dim);
+      border: 1px solid var(--red);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 24px 0;
+      text-align: center;
+    }
+
+    .error-box a { color: var(--green); }
+
+    .no-matches {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-dim);
+    }
+
+    .explanation {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 24px 0;
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    .explanation h3 {
+      color: var(--text);
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .collapse-toggle {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 4px 0;
+    }
+
+    .hidden { display: none; }
+
+    @media (max-width: 600px) {
+      .match-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .best-bet-row { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="container">
+      <h1>Soccer <span>Value Finder</span></h1>
+      <p>Comparing odds across bookmakers to find the best value bets for tomorrow's matches</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <div id="content">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Fetching odds from bookmakers across all major soccer leagues...</p>
+      </div>
+    </div>
+
+    <div class="explanation">
+      <h3>How value is calculated</h3>
+      <p>
+        We collect odds from multiple bookmakers for every soccer match tomorrow.
+        For each match, we compute the <strong>consensus implied probability</strong>
+        by averaging the implied probabilities (1 / decimal odds) across all bookmakers,
+        then remove the overround (vig) to derive <strong>fair probabilities</strong>.
+        A bet has <strong>positive value</strong> when a bookmaker offers odds that are
+        higher than what the fair probability suggests &mdash; meaning you're getting
+        better-than-fair compensation for the risk. The <strong>value %</strong> tells
+        you how much edge you'd have: +5% means for every $100 wagered, you'd expect
+        $5 profit if the fair probabilities are accurate.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    async function loadData() {
+      const content = document.getElementById('content');
+      try {
+        const res = await fetch('/api/value-bets');
+        const data = await res.json();
+
+        if (data.error) {
+          content.innerHTML = `<div class="error-box">
+            <p><strong>Error:</strong> ${escapeHtml(data.error)}</p>
+            <p style="margin-top:8px">Set your API key: <code>ODDS_API_KEY=your_key npm start</code></p>
+            <p style="margin-top:4px"><a href="https://the-odds-api.com" target="_blank">Get a free API key</a></p>
+          </div>`;
+          return;
+        }
+
+        if (data.totalMatches === 0) {
+          content.innerHTML = `<div class="no-matches">
+            <p style="font-size:18px;margin-bottom:8px">No matches found for tomorrow</p>
+            <p>There may be no professional soccer games scheduled, or the odds haven't been posted yet.</p>
+          </div>`;
+          return;
+        }
+
+        const positiveValue = data.valueBets.filter(m => m.bestBet.valuePercent > 0);
+        const bestValue = data.valueBets.length > 0 ? data.valueBets[0].bestBet.valuePercent : 0;
+
+        let html = `
+          <div class="date-banner">Matches for <strong>${escapeHtml(data.date)}</strong></div>
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="value">${data.totalMatches}</div>
+              <div class="label">Total Matches</div>
+            </div>
+            <div class="stat-card">
+              <div class="value">${positiveValue.length}</div>
+              <div class="label">Value Bets Found</div>
+            </div>
+            <div class="stat-card">
+              <div class="value">${bestValue > 0 ? '+' : ''}${bestValue.toFixed(1)}%</div>
+              <div class="label">Best Value</div>
+            </div>
+          </div>
+        `;
+
+        for (const match of data.valueBets) {
+          const val = match.bestBet.valuePercent;
+          const valClass = val >= 5 ? 'value-high' : val >= 0 ? 'value-medium' : 'value-low';
+          const valSign = val > 0 ? '+' : '';
+          const kickoff = new Date(match.kickoff).toLocaleTimeString('en-US', {
+            hour: '2-digit', minute: '2-digit', hour12: true
+          });
+
+          html += `
+            <div class="match-card">
+              <div class="match-header" onclick="toggleBody(this)">
+                <div>
+                  <div class="match-teams">
+                    ${escapeHtml(match.homeTeam)}<span class="vs">vs</span>${escapeHtml(match.awayTeam)}
+                  </div>
+                  <div class="match-meta">
+                    <span class="league-badge">${escapeHtml(match.league)}</span>
+                    <span>${kickoff}</span>
+                  </div>
+                </div>
+                <div class="value-badge ${valClass}">${valSign}${val.toFixed(1)}% value</div>
+              </div>
+              <div class="match-body hidden">
+                <div class="best-bet">
+                  <div class="best-bet-label">Best Value Bet</div>
+                  <div class="best-bet-row">
+                    <div class="best-bet-outcome">${escapeHtml(match.bestBet.outcome)}</div>
+                    <div class="best-bet-details">
+                      <div class="detail-item">
+                        <div class="val">${match.bestBet.bestOdds.toFixed(2)}</div>
+                        <div class="lbl">Best Odds</div>
+                      </div>
+                      <div class="detail-item">
+                        <div class="val">${match.bestBet.avgOdds.toFixed(2)}</div>
+                        <div class="lbl">Avg Odds</div>
+                      </div>
+                      <div class="detail-item">
+                        <div class="val">${(match.bestBet.fairProbability * 100).toFixed(1)}%</div>
+                        <div class="lbl">Fair Prob</div>
+                      </div>
+                      <div class="detail-item">
+                        <div class="val">${escapeHtml(match.bestBet.bestBookmaker)}</div>
+                        <div class="lbl">Bookmaker</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="outcomes-grid">
+                  ${match.allOutcomes.map(o => renderOutcome(o)).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        content.innerHTML = html;
+      } catch (err) {
+        content.innerHTML = `<div class="error-box">
+          <p><strong>Failed to load data:</strong> ${escapeHtml(err.message)}</p>
+        </div>`;
+      }
+    }
+
+    function renderOutcome(o) {
+      const valSign = o.valuePercent > 0 ? '+' : '';
+      const valColor = o.valuePercent >= 5 ? 'var(--green)' : o.valuePercent >= 0 ? 'var(--yellow)' : 'var(--red)';
+      const barWidth = Math.min(Math.max(o.fairProbability * 100, 5), 95);
+
+      let oddsChips = '';
+      const sorted = [...o.allOdds].sort((a, b) => b.price - a.price);
+      for (const entry of sorted) {
+        const isBest = entry.bookmaker === o.bestBookmaker && entry.price === o.bestOdds;
+        oddsChips += `<span class="bk-chip ${isBest ? 'best' : ''}">${escapeHtml(entry.bookmaker)} ${entry.price.toFixed(2)}</span>`;
+      }
+
+      return `
+        <div class="outcome-card">
+          <div class="outcome-name">${escapeHtml(o.outcome)}</div>
+          <div class="outcome-stats">
+            <span>Fair prob</span>
+            <span class="val">${(o.fairProbability * 100).toFixed(1)}%</span>
+          </div>
+          <div class="outcome-stats">
+            <span>Best odds</span>
+            <span class="val">${o.bestOdds.toFixed(2)} (${escapeHtml(o.bestBookmaker)})</span>
+          </div>
+          <div class="outcome-stats">
+            <span>Avg / Range</span>
+            <span class="val">${o.avgOdds.toFixed(2)} (${o.minOdds.toFixed(2)}-${o.maxOdds.toFixed(2)})</span>
+          </div>
+          <div class="outcome-stats">
+            <span>Value</span>
+            <span class="val" style="color:${valColor}">${valSign}${o.valuePercent.toFixed(1)}%</span>
+          </div>
+          <div class="odds-bar"><div class="odds-bar-fill" style="width:${barWidth}%"></div></div>
+          <div class="bookmaker-odds">${oddsChips}</div>
+        </div>
+      `;
+    }
+
+    function toggleBody(header) {
+      const body = header.nextElementSibling;
+      body.classList.toggle('hidden');
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

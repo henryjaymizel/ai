@@ -1,0 +1,13 @@
+{
+  "name": "soccer-betting-value",
+  "version": "1.0.0",
+  "description": "Find value bets in tomorrow's professional soccer matches",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
