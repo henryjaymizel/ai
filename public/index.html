@@ -158,7 +158,7 @@
     const res = await fetch(url, opts);
     const ct = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
-      throw new Error('Server returned HTML instead of JSON. Make sure you are running "node server.js" and accessing the app at http://localhost:3000/app');
+      throw new Error('Server returned HTML instead of JSON. Make sure you are running "node server.js" and accessing http://localhost:3000/');
     }
     return res.json();
   }
