@@ -199,6 +199,10 @@ function analyzeValue(event) {
 }
 
 app.use(express.json());
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/key-status', (req, res) => {
