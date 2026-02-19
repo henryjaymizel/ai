@@ -174,6 +174,7 @@
       const list = document.getElementById('key-list');
       if (keys.length === 0) {
         list.innerHTML = '<li class="no-keys">No API keys configured yet</li>';
+        document.getElementById('keys-panel').classList.add('open');
         return;
       }
       list.innerHTML = keys.map(k => `
@@ -214,9 +215,7 @@
       if (data.error) {
         errEl.textContent = data.error;
       } else {
-        okEl.textContent = data.warning
-          ? 'Key saved! ⚠️ ' + data.warning
-          : 'Key added successfully!';
+        okEl.textContent = 'Key added! Loading bets...';
         keyInput.value = '';
         labelInput.value = '';
         loadKeyList();

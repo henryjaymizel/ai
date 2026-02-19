@@ -194,23 +194,10 @@ app.get('/api/keys', (req, res) => {
 });
 
 // Add a new API key
-app.post('/api/keys', async (req, res) => {
+app.post('/api/keys', (req, res) => {
   const key = (req.body.key || '').trim();
   const label = (req.body.label || '').trim() || 'Key';
   if (!key) return res.status(400).json({ error: 'API key is required' });
-
-  // Validate key
-  let validated = false;
-  try {
-    await fetchJSON(`https://api.the-odds-api.com/v4/sports/?apiKey=${key}`);
-    validated = true;
-  } catch (err) {
-    if (err.message === 'INVALID_KEY') {
-      return res.status(400).json({ error: 'Invalid API key — rejected by the-odds-api.com' });
-    }
-    // Key format looks plausible but API unreachable/rate-limited — accept it
-    console.log(`Key validation inconclusive (${err.message}), accepting key anyway`);
-  }
 
   const keys = loadKeys();
   // Don't add duplicates
@@ -220,12 +207,9 @@ app.post('/api/keys', async (req, res) => {
 
   keys.push({ key, label, added: new Date().toISOString() });
   saveKeys(keys);
+  console.log(`API key added (label: ${label}). Total keys: ${keys.length}`);
 
-  // Reload leagues with the new key available
-  if (SOCCER_LEAGUES.length === 0) await loadLeagues();
-
-  const warning = validated ? undefined : 'Key saved but could not verify with the-odds-api.com — it will be tested when fetching odds.';
-  res.json({ success: true, total: keys.length, warning });
+  res.json({ success: true, total: keys.length });
 });
 
 // Delete an API key by index
