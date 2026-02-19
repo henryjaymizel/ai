@@ -18,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // The Odds API - free tier (500 req/month)
-const ODDS_API_KEY = process.env.ODDS_API_KEY || '';
+let ODDS_API_KEY = process.env.ODDS_API_KEY || '';
 
 // Fetch the active soccer league list dynamically from the API
 let SOCCER_LEAGUES = [];
@@ -198,7 +198,48 @@ function analyzeValue(event) {
   return valueBets;
 }
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/api/key-status', (req, res) => {
+  res.json({ hasKey: !!ODDS_API_KEY });
+});
+
+app.post('/api/set-key', async (req, res) => {
+  const key = (req.body.key || '').trim();
+  if (!key) {
+    return res.status(400).json({ error: 'API key is required' });
+  }
+
+  // Validate the key by making a test request
+  try {
+    await fetchJSON(`https://api.the-odds-api.com/v4/sports/?apiKey=${key}`);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid API key: ' + err.message });
+  }
+
+  // Save to .env file
+  if (fs.existsSync(envPath)) {
+    let content = fs.readFileSync(envPath, 'utf8');
+    if (content.match(/^ODDS_API_KEY=.*/m)) {
+      content = content.replace(/^ODDS_API_KEY=.*/m, `ODDS_API_KEY=${key}`);
+    } else {
+      content += `\nODDS_API_KEY=${key}\n`;
+    }
+    fs.writeFileSync(envPath, content);
+  } else {
+    fs.writeFileSync(envPath, `ODDS_API_KEY=${key}\n`);
+  }
+
+  // Update in-memory key and reload leagues
+  ODDS_API_KEY = key;
+  process.env.ODDS_API_KEY = key;
+  SOCCER_LEAGUES = [];
+  LEAGUE_NAMES = {};
+  await loadLeagues();
+
+  res.json({ success: true, leagues: SOCCER_LEAGUES.length });
+});
 
 app.get('/api/value-bets', async (req, res) => {
   if (!ODDS_API_KEY) {
