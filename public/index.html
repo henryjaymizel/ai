@@ -206,7 +206,9 @@
       if (data.error) {
         errEl.textContent = data.error;
       } else {
-        okEl.textContent = 'Key added successfully!';
+        okEl.textContent = data.warning
+          ? 'Key saved! ⚠️ ' + data.warning
+          : 'Key added successfully!';
         keyInput.value = '';
         labelInput.value = '';
         loadKeyList();
