@@ -173,7 +173,14 @@ function analyzeValue(event) {
 
 // --- Routes ---
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
+  next();
+});
+app.use(express.static(path.join(__dirname, 'public'), { etag: false, lastModified: false }));
 
 // List all stored API keys (masked)
 app.get('/api/keys', (req, res) => {
