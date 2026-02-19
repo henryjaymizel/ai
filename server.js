@@ -1,12 +1,23 @@
 const express = require('express');
 const https = require('https');
 const path = require('path');
+const fs = require('fs');
+
+// Load .env file if present
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const match = line.match(/^\s*([\w]+)\s*=\s*(.+)\s*$/);
+    if (match && !process.env[match[1]]) {
+      process.env[match[1]] = match[2];
+    }
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // The Odds API - free tier (500 req/month)
-// Users should set their own key via environment variable
 const ODDS_API_KEY = process.env.ODDS_API_KEY || '';
 
 // All soccer leagues supported by The Odds API
