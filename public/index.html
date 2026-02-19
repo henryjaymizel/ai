@@ -153,6 +153,16 @@
 </div>
 
 <script>
+  // --- API helper ---
+  async function apiFetch(url, opts) {
+    const res = await fetch(url, opts);
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      throw new Error('Server returned HTML instead of JSON. Make sure you are running "node server.js" and accessing the app at http://localhost:3000/app');
+    }
+    return res.json();
+  }
+
   // --- Keys Panel ---
   function toggleKeysPanel() {
     document.getElementById('keys-panel').classList.toggle('open');
@@ -160,8 +170,7 @@
 
   async function loadKeyList() {
     try {
-      const res = await fetch('/api/keys');
-      const keys = await res.json();
+      const keys = await apiFetch('/api/keys');
       const list = document.getElementById('key-list');
       if (keys.length === 0) {
         list.innerHTML = '<li class="no-keys">No API keys configured yet</li>';
@@ -197,12 +206,11 @@
     btn.textContent = 'Validating...';
 
     try {
-      const res = await fetch('/api/keys', {
+      const data = await apiFetch('/api/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, label: labelInput.value.trim() }),
       });
-      const data = await res.json();
       if (data.error) {
         errEl.textContent = data.error;
       } else {
@@ -236,8 +244,7 @@
     content.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading value bets...</p></div>';
 
     try {
-      const res = await fetch('/api/value-bets');
-      const data = await res.json();
+      const data = await apiFetch('/api/value-bets');
 
       if (data.error === 'NO_KEYS' || data.error === 'ALL_KEYS_FAILED') {
         document.getElementById('keys-panel').classList.add('open');

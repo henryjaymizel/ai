@@ -325,6 +325,11 @@ app.get('/api/value-bets', async (req, res) => {
   }
 });
 
+// Catch-all for unknown /api routes — always return JSON, never HTML
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Unknown API endpoint' });
+});
+
 loadLeagues().then(() => {
   app.listen(PORT, () => {
     console.log(`Soccer Value Bets running at http://localhost:${PORT}`);
