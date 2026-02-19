@@ -3,31 +3,89 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs');
 
-// Load .env file if present
-const envPath = path.join(__dirname, '.env');
-if (fs.existsSync(envPath)) {
-  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
-    const match = line.match(/^\s*([\w]+)\s*=\s*(.+)\s*$/);
-    if (match && !process.env[match[1]]) {
-      process.env[match[1]] = match[2];
-    }
-  }
-}
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// The Odds API - free tier (500 req/month)
-let ODDS_API_KEY = process.env.ODDS_API_KEY || '';
+// --- API Key Management (stored in keys.json) ---
+const KEYS_FILE = path.join(__dirname, 'keys.json');
 
-// Fetch the active soccer league list dynamically from the API
+function loadKeys() {
+  try {
+    if (fs.existsSync(KEYS_FILE)) {
+      return JSON.parse(fs.readFileSync(KEYS_FILE, 'utf8'));
+    }
+  } catch (e) {}
+
+  // Migrate from .env if keys.json doesn't exist
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    const match = content.match(/ODDS_API_KEY=(\S+)/);
+    if (match && match[1]) {
+      const keys = [{ key: match[1], label: 'Default', added: new Date().toISOString() }];
+      saveKeys(keys);
+      return keys;
+    }
+  }
+  return [];
+}
+
+function saveKeys(keys) {
+  fs.writeFileSync(KEYS_FILE, JSON.stringify(keys, null, 2));
+}
+
+// --- HTTP helper ---
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try { resolve(JSON.parse(data)); }
+          catch (e) { reject(new Error('JSON parse error')); }
+        } else if (res.statusCode === 401) {
+          reject(new Error('INVALID_KEY'));
+        } else if (res.statusCode === 422) {
+          resolve([]);
+        } else {
+          reject(new Error(`HTTP ${res.statusCode}`));
+        }
+      });
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+// Try a fetch with each key until one works. Returns { data, usedKey } or throws.
+async function fetchWithKeys(urlTemplate) {
+  const keys = loadKeys();
+  if (keys.length === 0) throw new Error('NO_KEYS');
+
+  for (const entry of keys) {
+    const url = urlTemplate.replace('__API_KEY__', entry.key);
+    try {
+      const data = await fetchJSON(url);
+      return { data, usedKey: entry.key };
+    } catch (err) {
+      if (err.message === 'INVALID_KEY') continue; // try next key
+      throw err;
+    }
+  }
+  throw new Error('ALL_KEYS_FAILED');
+}
+
+// --- League loading ---
 let SOCCER_LEAGUES = [];
 let LEAGUE_NAMES = {};
 
 async function loadLeagues() {
-  if (!ODDS_API_KEY) return;
+  SOCCER_LEAGUES = [];
+  LEAGUE_NAMES = {};
   try {
-    const sports = await fetchJSON(`https://api.the-odds-api.com/v4/sports/?apiKey=${ODDS_API_KEY}`);
+    const { data: sports } = await fetchWithKeys(
+      'https://api.the-odds-api.com/v4/sports/?apiKey=__API_KEY__'
+    );
     for (const s of sports) {
       if (s.key.startsWith('soccer_') && s.active && !s.has_outrights) {
         SOCCER_LEAGUES.push(s.key);
@@ -37,7 +95,6 @@ async function loadLeagues() {
     console.log(`Loaded ${SOCCER_LEAGUES.length} active soccer leagues`);
   } catch (err) {
     console.error('Failed to load leagues:', err.message);
-    // Fallback to hardcoded list
     SOCCER_LEAGUES = [
       'soccer_epl', 'soccer_spain_la_liga', 'soccer_germany_bundesliga',
       'soccer_italy_serie_a', 'soccer_france_ligue_one', 'soccer_uefa_champs_league',
@@ -53,97 +110,24 @@ async function loadLeagues() {
   }
 }
 
-function fetchJSON(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(new Error(`JSON parse error: ${e.message}`));
-          }
-        } else if (res.statusCode === 401) {
-          reject(new Error('Invalid API key. Get a free key at https://the-odds-api.com'));
-        } else if (res.statusCode === 422) {
-          // Unknown sport/league — skip silently
-          resolve([]);
-        } else {
-          reject(new Error(`HTTP ${res.statusCode}: ${data}`));
-        }
-      });
-      res.on('error', reject);
-    }).on('error', reject);
-  });
-}
-
-function getDateRange(daysAhead) {
-  const now = new Date();
-
-  // Start: tomorrow at midnight
-  const start = new Date(now);
-  start.setDate(start.getDate() + 1);
-  start.setHours(0, 0, 0, 0);
-
-  // End: daysAhead days from now (default 1 = just tomorrow)
-  const end = new Date(start);
-  end.setDate(end.getDate() + (daysAhead || 1));
-
-  const startLabel = start.toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric',
-  });
-  const endDate = new Date(end);
-  endDate.setDate(endDate.getDate() - 1);
-  const endLabel = endDate.toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric',
-  });
-
-  const label = daysAhead > 1
-    ? `${startLabel} – ${endLabel}`
-    : start.toLocaleDateString('en-US', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-      });
-
-  return { start: start.toISOString(), end: end.toISOString(), label };
-}
-
-/**
- * Calculate value bets by comparing each bookmaker's odds to the market average.
- *
- * Value = (Bookmaker Implied Probability is LOWER than consensus) meaning
- * the bookmaker is offering better odds than the market average.
- *
- * We compute:
- *  - Average implied probability across all bookmakers for each outcome
- *  - Remove the overround (vig) to get "fair" probabilities
- *  - Compare each bookmaker's offered odds to the fair probability
- *  - Value % = (decimal_odds * fair_probability - 1) * 100
- *    Positive value % means the odds offered are better than fair
- */
+// --- Value analysis ---
 function analyzeValue(event) {
   const bookmakers = event.bookmakers;
   if (!bookmakers || bookmakers.length < 2) return null;
 
-  // Collect all h2h (moneyline) odds: { outcome_name -> [{ bookmaker, price }] }
   const outcomeOdds = {};
   for (const bk of bookmakers) {
     const h2h = bk.markets.find(m => m.key === 'h2h');
     if (!h2h) continue;
     for (const outcome of h2h.outcomes) {
       if (!outcomeOdds[outcome.name]) outcomeOdds[outcome.name] = [];
-      outcomeOdds[outcome.name].push({
-        bookmaker: bk.title,
-        price: outcome.price,
-      });
+      outcomeOdds[outcome.name].push({ bookmaker: bk.title, price: outcome.price });
     }
   }
 
   const outcomes = Object.keys(outcomeOdds);
   if (outcomes.length === 0) return null;
 
-  // Calculate consensus (average) implied probability per outcome
   const consensus = {};
   let totalConsensus = 0;
   for (const name of outcomes) {
@@ -153,19 +137,14 @@ function analyzeValue(event) {
     totalConsensus += avgImpliedProb;
   }
 
-  // Remove overround to get fair probabilities
   const fairProb = {};
   for (const name of outcomes) {
     fairProb[name] = consensus[name] / totalConsensus;
   }
 
-  // Find value in each outcome across bookmakers
   const valueBets = [];
   for (const name of outcomes) {
-    let bestValue = -Infinity;
-    let bestBookmaker = '';
-    let bestOdds = 0;
-
+    let bestValue = -Infinity, bestBookmaker = '', bestOdds = 0;
     for (const entry of outcomeOdds[name]) {
       const value = (entry.price * fairProb[name] - 1) * 100;
       if (value > bestValue) {
@@ -177,8 +156,6 @@ function analyzeValue(event) {
 
     const allPrices = outcomeOdds[name].map(o => o.price);
     const avgOdds = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
-    const minOdds = Math.min(...allPrices);
-    const maxOdds = Math.max(...allPrices);
 
     valueBets.push({
       outcome: name,
@@ -187,128 +164,152 @@ function analyzeValue(event) {
       bestBookmaker,
       valuePercent: bestValue,
       avgOdds: +avgOdds.toFixed(2),
-      minOdds,
-      maxOdds,
-      oddsSpread: +(maxOdds - minOdds).toFixed(2),
       numBookmakers: outcomeOdds[name].length,
-      allOdds: outcomeOdds[name],
     });
   }
 
   return valueBets;
 }
 
+// --- Routes ---
 app.use(express.json());
-app.use((req, res, next) => {
-  res.set('Cache-Control', 'no-store');
-  next();
-});
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/api/key-status', (req, res) => {
-  res.json({ hasKey: !!ODDS_API_KEY });
+// List all stored API keys (masked)
+app.get('/api/keys', (req, res) => {
+  const keys = loadKeys();
+  res.json(keys.map((k, i) => ({
+    index: i,
+    label: k.label || `Key ${i + 1}`,
+    masked: k.key.slice(0, 6) + '...' + k.key.slice(-4),
+    added: k.added,
+  })));
 });
 
-app.post('/api/set-key', async (req, res) => {
+// Add a new API key
+app.post('/api/keys', async (req, res) => {
   const key = (req.body.key || '').trim();
-  if (!key) {
-    return res.status(400).json({ error: 'API key is required' });
-  }
+  const label = (req.body.label || '').trim() || 'Key';
+  if (!key) return res.status(400).json({ error: 'API key is required' });
 
-  // Validate the key by making a test request
+  // Validate key
   try {
     await fetchJSON(`https://api.the-odds-api.com/v4/sports/?apiKey=${key}`);
   } catch (err) {
-    return res.status(400).json({ error: 'Invalid API key: ' + err.message });
+    return res.status(400).json({ error: 'Invalid API key — could not verify with the-odds-api.com' });
   }
 
-  // Save to .env file
-  if (fs.existsSync(envPath)) {
-    let content = fs.readFileSync(envPath, 'utf8');
-    if (content.match(/^ODDS_API_KEY=.*/m)) {
-      content = content.replace(/^ODDS_API_KEY=.*/m, `ODDS_API_KEY=${key}`);
-    } else {
-      content += `\nODDS_API_KEY=${key}\n`;
-    }
-    fs.writeFileSync(envPath, content);
-  } else {
-    fs.writeFileSync(envPath, `ODDS_API_KEY=${key}\n`);
+  const keys = loadKeys();
+  // Don't add duplicates
+  if (keys.some(k => k.key === key)) {
+    return res.status(400).json({ error: 'This key is already saved' });
   }
 
-  // Update in-memory key and reload leagues
-  ODDS_API_KEY = key;
-  process.env.ODDS_API_KEY = key;
-  SOCCER_LEAGUES = [];
-  LEAGUE_NAMES = {};
-  await loadLeagues();
+  keys.push({ key, label, added: new Date().toISOString() });
+  saveKeys(keys);
 
-  res.json({ success: true, leagues: SOCCER_LEAGUES.length });
+  // Reload leagues with the new key available
+  if (SOCCER_LEAGUES.length === 0) await loadLeagues();
+
+  res.json({ success: true, total: keys.length });
 });
 
+// Delete an API key by index
+app.delete('/api/keys/:index', (req, res) => {
+  const keys = loadKeys();
+  const idx = parseInt(req.params.index);
+  if (isNaN(idx) || idx < 0 || idx >= keys.length) {
+    return res.status(400).json({ error: 'Invalid key index' });
+  }
+  keys.splice(idx, 1);
+  saveKeys(keys);
+  res.json({ success: true, total: keys.length });
+});
+
+// Get today's value bets
 app.get('/api/value-bets', async (req, res) => {
-  if (!ODDS_API_KEY) {
-    return res.status(400).json({
-      error: 'No API key configured. Set ODDS_API_KEY environment variable. Get a free key at https://the-odds-api.com',
-    });
+  const keys = loadKeys();
+  if (keys.length === 0) {
+    return res.status(400).json({ error: 'NO_KEYS' });
   }
 
-  const days = Math.min(Math.max(parseInt(req.query.days) || 1, 1), 7);
-  const { start, end, label } = getDateRange(days);
+  if (SOCCER_LEAGUES.length === 0) await loadLeagues();
+
+  const now = new Date();
+  // Today: from now to end of today (or next 24h to catch all today's matches)
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  // Also look back a few hours to include matches that started recently
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  const commenceFrom = start.toISOString();
+  const commenceTo = end.toISOString();
 
   try {
-    // Fetch odds for all soccer leagues in parallel
-    const results = await Promise.allSettled(
-      SOCCER_LEAGUES.map(league => {
-        const url = `https://api.the-odds-api.com/v4/sports/${league}/odds/?apiKey=${ODDS_API_KEY}&regions=us,uk,eu,au&markets=h2h&oddsFormat=decimal&commenceTimeFrom=${encodeURIComponent(start)}&commenceTimeTo=${encodeURIComponent(end)}`;
-        return fetchJSON(url).then(events => ({ league, events }));
-      })
-    );
-
     const allValueBets = [];
 
-    for (const result of results) {
-      if (result.status !== 'fulfilled') continue;
-      const { league, events } = result.value;
-      if (!events || events.length === 0) continue;
+    // Fetch in batches of 5 to avoid overwhelming the API
+    for (let i = 0; i < SOCCER_LEAGUES.length; i += 5) {
+      const batch = SOCCER_LEAGUES.slice(i, i + 5);
+      const results = await Promise.allSettled(
+        batch.map(async (league) => {
+          const url = `https://api.the-odds-api.com/v4/sports/${league}/odds/?apiKey=__API_KEY__&regions=us,uk,eu,au&markets=h2h&oddsFormat=decimal&commenceTimeFrom=${encodeURIComponent(commenceFrom)}&commenceTimeTo=${encodeURIComponent(commenceTo)}`;
+          const { data: events } = await fetchWithKeys(url);
+          return { league, events };
+        })
+      );
 
-      for (const event of events) {
-        const analysis = analyzeValue(event);
-        if (!analysis) continue;
+      for (const result of results) {
+        if (result.status !== 'fulfilled') continue;
+        const { league, events } = result.value;
+        if (!events || events.length === 0) continue;
 
-        // Find the single best value outcome for this match
-        const bestOutcome = analysis.reduce((best, cur) =>
-          cur.valuePercent > best.valuePercent ? cur : best
-        );
+        for (const event of events) {
+          const analysis = analyzeValue(event);
+          if (!analysis) continue;
 
-        allValueBets.push({
-          league: LEAGUE_NAMES[league] || league,
-          homeTeam: event.home_team,
-          awayTeam: event.away_team,
-          kickoff: event.commence_time,
-          bestBet: bestOutcome,
-          allOutcomes: analysis,
-        });
+          const bestOutcome = analysis.reduce((best, cur) =>
+            cur.valuePercent > best.valuePercent ? cur : best
+          );
+
+          // Only include if there's positive value
+          if (bestOutcome.valuePercent <= 0) continue;
+
+          allValueBets.push({
+            league: LEAGUE_NAMES[league] || league,
+            homeTeam: event.home_team,
+            awayTeam: event.away_team,
+            kickoff: event.commence_time,
+            bestBet: bestOutcome,
+            allOutcomes: analysis,
+          });
+        }
       }
     }
 
-    // Sort by highest value first
     allValueBets.sort((a, b) => b.bestBet.valuePercent - a.bestBet.valuePercent);
 
-    res.json({
-      date: label,
-      totalMatches: allValueBets.length,
-      valueBets: allValueBets,
+    const today = now.toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
+
+    res.json({ date: today, totalMatches: allValueBets.length, valueBets: allValueBets });
   } catch (err) {
+    if (err.message === 'ALL_KEYS_FAILED') {
+      return res.status(400).json({ error: 'ALL_KEYS_FAILED' });
+    }
+    if (err.message === 'NO_KEYS') {
+      return res.status(400).json({ error: 'NO_KEYS' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
 
 loadLeagues().then(() => {
   app.listen(PORT, () => {
-    console.log(`Soccer Betting Value app running at http://localhost:${PORT}`);
-    if (!ODDS_API_KEY) {
-      console.log('WARNING: No ODDS_API_KEY set. Get a free key at https://the-odds-api.com');
-    }
+    console.log(`Soccer Value Bets running at http://localhost:${PORT}`);
+    const keys = loadKeys();
+    console.log(`API keys configured: ${keys.length}`);
   });
 });

@@ -3,733 +3,334 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Soccer Betting Value Finder</title>
+  <title>Soccer Value Bets</title>
   <style>
-    :root {
-      --bg: #0f1117;
-      --surface: #1a1d28;
-      --surface2: #242836;
-      --border: #2e3345;
-      --text: #e1e4ed;
-      --text-dim: #8b90a0;
-      --accent: #6c5ce7;
-      --green: #00b894;
-      --green-dim: #00b89433;
-      --yellow: #fdcb6e;
-      --yellow-dim: #fdcb6e33;
-      --red: #e17055;
-      --red-dim: #e1705533;
-    }
-
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
+      background: #0f1117; color: #e1e4ed; min-height: 100vh;
     }
+    .wrap { max-width: 800px; margin: 0 auto; padding: 20px; }
 
-    .header {
-      background: linear-gradient(135deg, #1a1d28 0%, #242836 100%);
-      border-bottom: 1px solid var(--border);
-      padding: 24px 0;
+    /* Header */
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    header h1 { font-size: 22px; }
+    header h1 span { color: #00b894; }
+    .keys-toggle {
+      background: #1a1d28; border: 1px solid #2e3345; color: #8b90a0;
+      padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
     }
+    .keys-toggle:hover { border-color: #6c5ce7; color: #e1e4ed; }
 
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 0 20px;
+    /* Key Management Panel */
+    #keys-panel {
+      background: #1a1d28; border: 1px solid #2e3345; border-radius: 12px;
+      padding: 20px; margin-bottom: 24px; display: none;
     }
-
-    .header h1 {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 4px;
+    #keys-panel.open { display: block; }
+    #keys-panel h2 { font-size: 16px; margin-bottom: 12px; }
+    .key-form { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .key-form input {
+      padding: 10px 12px; border-radius: 8px; border: 1px solid #2e3345;
+      background: #0f1117; color: #e1e4ed; font-size: 14px; outline: none;
     }
-
-    .header h1 span { color: var(--green); }
-
-    .header p {
-      color: var(--text-dim);
-      font-size: 14px;
+    .key-form input:focus { border-color: #6c5ce7; }
+    .key-form input[name="key"] { flex: 1; min-width: 200px; font-family: monospace; }
+    .key-form input[name="label"] { width: 120px; }
+    .key-form button {
+      padding: 10px 18px; border-radius: 8px; border: none;
+      background: #00b894; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
     }
-
-    .date-banner {
-      text-align: center;
-      padding: 16px;
-      margin: 24px 0;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      font-size: 15px;
-      color: var(--text-dim);
+    .key-form button:disabled { opacity: 0.5; }
+    #key-error { color: #e17055; font-size: 13px; margin-bottom: 12px; }
+    #key-success { color: #00b894; font-size: 13px; margin-bottom: 12px; }
+    .key-list { list-style: none; }
+    .key-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; background: #0f1117; border: 1px solid #2e3345;
+      border-radius: 8px; margin-bottom: 8px; font-size: 14px;
     }
-
-    .date-banner strong { color: var(--text); }
-
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 12px;
-      margin-bottom: 24px;
+    .key-item .label { font-weight: 600; margin-right: 12px; }
+    .key-item .masked { color: #8b90a0; font-family: monospace; font-size: 13px; }
+    .key-item .delete-btn {
+      background: none; border: 1px solid #e17055; color: #e17055;
+      padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
     }
+    .key-item .delete-btn:hover { background: #e1705533; }
+    .no-keys { color: #8b90a0; font-size: 14px; text-align: center; padding: 12px; }
 
-    .stat-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 20px;
-      text-align: center;
-    }
+    /* Date */
+    .date { text-align: center; color: #8b90a0; font-size: 14px; margin-bottom: 20px; }
+    .date strong { color: #e1e4ed; }
 
-    .stat-card .value {
-      font-size: 28px;
-      font-weight: 700;
-      color: var(--green);
-    }
-
-    .stat-card .label {
-      font-size: 12px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-top: 4px;
-    }
-
-    .match-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      margin-bottom: 16px;
-      overflow: hidden;
-      transition: border-color 0.2s;
-    }
-
-    .match-card:hover { border-color: var(--accent); }
-
-    .match-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-    }
-
-    .match-teams {
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    .match-teams .vs { color: var(--text-dim); font-weight: 400; margin: 0 6px; }
-
-    .match-meta {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 13px;
-      color: var(--text-dim);
-      margin-top: 4px;
-    }
-
-    .league-badge {
-      background: var(--surface2);
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
-
-    .value-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 6px 14px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 14px;
-    }
-
-    .value-high {
-      background: var(--green-dim);
-      color: var(--green);
-    }
-
-    .value-medium {
-      background: var(--yellow-dim);
-      color: var(--yellow);
-    }
-
-    .value-low {
-      background: var(--red-dim);
-      color: var(--red);
-    }
-
-    .match-body { padding: 16px 20px; }
-
-    .best-bet {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-
-    .best-bet-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--green);
-      margin-bottom: 8px;
-      font-weight: 600;
-    }
-
-    .best-bet-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .best-bet-outcome {
-      font-size: 18px;
-      font-weight: 700;
-    }
-
-    .best-bet-details {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-
-    .detail-item {
-      text-align: center;
-    }
-
-    .detail-item .val {
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    .detail-item .lbl {
-      font-size: 11px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-    }
-
-    .outcomes-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 10px;
-    }
-
-    .outcome-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-    }
-
-    .outcome-name {
-      font-weight: 600;
-      font-size: 14px;
-      margin-bottom: 8px;
-    }
-
-    .outcome-stats {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: var(--text-dim);
-      margin-bottom: 4px;
-    }
-
-    .outcome-stats .val { color: var(--text); font-weight: 500; }
-
-    .odds-bar {
-      height: 4px;
-      background: var(--surface2);
-      border-radius: 2px;
-      margin-top: 8px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .odds-bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      background: var(--accent);
-    }
-
-    .bookmaker-odds {
-      margin-top: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .bk-chip {
-      font-size: 11px;
-      background: var(--surface2);
-      padding: 3px 8px;
-      border-radius: 4px;
-      color: var(--text-dim);
-    }
-
-    .bk-chip.best {
-      background: var(--green-dim);
-      color: var(--green);
-      font-weight: 600;
-    }
-
-    .loading {
-      text-align: center;
-      padding: 80px 20px;
-    }
-
+    /* Loading */
+    .loading { text-align: center; padding: 60px 0; color: #8b90a0; }
     .spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--border);
-      border-top-color: var(--green);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 16px;
+      width: 32px; height: 32px; border: 3px solid #2e3345; border-top-color: #00b894;
+      border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Error / empty */
     .error-box {
-      background: var(--red-dim);
-      border: 1px solid var(--red);
-      border-radius: 10px;
-      padding: 20px;
-      margin: 24px 0;
-      text-align: center;
+      background: #e1705522; border: 1px solid #e17055; border-radius: 10px;
+      padding: 20px; text-align: center; margin: 20px 0;
     }
+    .empty { text-align: center; padding: 60px 0; color: #8b90a0; }
 
-    .error-box a { color: var(--green); }
-
-    .no-matches {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text-dim);
+    /* Value bet rows */
+    .bet-list { display: flex; flex-direction: column; gap: 10px; }
+    .bet-row {
+      display: flex; align-items: center; gap: 16px;
+      background: #1a1d28; border: 1px solid #2e3345; border-radius: 10px;
+      padding: 14px 18px; transition: border-color 0.2s; cursor: pointer;
     }
-
-    .explanation {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 20px;
-      margin: 24px 0;
-      font-size: 13px;
-      color: var(--text-dim);
-      line-height: 1.6;
+    .bet-row:hover { border-color: #6c5ce7; }
+    .bet-rank {
+      font-size: 13px; font-weight: 700; color: #8b90a0; min-width: 28px; text-align: center;
     }
-
-    .explanation h3 {
-      color: var(--text);
-      margin-bottom: 8px;
-      font-size: 14px;
+    .bet-value {
+      font-size: 18px; font-weight: 700; min-width: 75px; text-align: right;
     }
-
-    .collapse-toggle {
-      background: none;
-      border: none;
-      color: var(--accent);
-      cursor: pointer;
-      font-size: 12px;
-      padding: 4px 0;
+    .val-high { color: #00b894; }
+    .val-med { color: #fdcb6e; }
+    .val-low { color: #e17055; }
+    .bet-info { flex: 1; min-width: 0; }
+    .bet-teams { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bet-teams .vs { color: #8b90a0; font-weight: 400; }
+    .bet-meta { font-size: 12px; color: #8b90a0; margin-top: 2px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .bet-pick {
+      background: #242836; border: 1px solid #2e3345; border-radius: 8px;
+      padding: 8px 14px; text-align: center; min-width: 120px;
     }
+    .bet-pick .outcome { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .bet-pick .odds { font-size: 16px; font-weight: 700; color: #00b894; }
+    .bet-pick .bk { font-size: 11px; color: #8b90a0; }
 
-    .hidden { display: none; }
-
-    .settings-btn {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      padding: 6px 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+    /* Expanded details */
+    .bet-details {
+      display: none; background: #1a1d28; border: 1px solid #2e3345;
+      border-top: none; border-radius: 0 0 10px 10px; padding: 14px 18px;
+      margin-top: -10px; margin-bottom: 10px;
     }
-
-    .settings-btn:hover { border-color: var(--accent); color: var(--text); }
-
-    .key-banner {
-      background: var(--yellow-dim);
-      border: 1px solid var(--yellow);
-      border-radius: 10px;
-      padding: 20px;
-      margin: 24px 0;
-      text-align: center;
+    .bet-details.open { display: block; }
+    .outcomes-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .outcome-chip {
+      background: #0f1117; border: 1px solid #2e3345; border-radius: 8px;
+      padding: 10px 14px; flex: 1; min-width: 140px;
     }
-
-    .key-banner p { margin-bottom: 12px; }
-
-    .key-input-row {
-      display: flex;
-      gap: 8px;
-      max-width: 500px;
-      margin: 0 auto;
-    }
-
-    .key-input-row input {
-      flex: 1;
-      padding: 10px 14px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--bg);
-      color: var(--text);
-      font-size: 14px;
-      font-family: monospace;
-      outline: none;
-    }
-
-    .key-input-row input:focus { border-color: var(--accent); }
-
-    .key-input-row button {
-      padding: 10px 20px;
-      border-radius: 8px;
-      border: none;
-      background: var(--green);
-      color: #fff;
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .key-input-row button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .key-msg {
-      margin-top: 10px;
-      font-size: 13px;
-    }
-
-    .key-msg.error { color: var(--red); }
-    .key-msg.success { color: var(--green); }
-
-    .day-btn {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      padding: 8px 18px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.2s;
-    }
-
-    .day-btn:hover { border-color: var(--accent); color: var(--text); }
-
-    .day-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-
-    @media (max-width: 600px) {
-      .match-header { flex-direction: column; align-items: flex-start; gap: 8px; }
-      .best-bet-row { flex-direction: column; align-items: flex-start; }
-    }
+    .outcome-chip .name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .outcome-chip .stat { font-size: 12px; color: #8b90a0; display: flex; justify-content: space-between; }
+    .outcome-chip .stat .v { color: #e1e4ed; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="container" style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <h1>Soccer <span>Value Finder</span></h1>
-        <p>Comparing odds across bookmakers to find the best value bets in upcoming matches</p>
-      </div>
-      <button class="settings-btn" onclick="toggleKeyInput()">&#9881; API Key</button>
+<div class="wrap">
+  <header>
+    <h1>Soccer <span>Value Bets</span></h1>
+    <button class="keys-toggle" onclick="toggleKeysPanel()">API Keys</button>
+  </header>
+
+  <div id="keys-panel">
+    <h2>Manage API Keys</h2>
+    <p style="font-size:13px;color:#8b90a0;margin-bottom:12px">
+      Add one or more keys from <a href="https://the-odds-api.com" target="_blank" style="color:#00b894">the-odds-api.com</a>.
+      If one expires, the next will be used automatically.
+    </p>
+    <div class="key-form">
+      <input name="key" placeholder="Paste API key..." />
+      <input name="label" placeholder="Label (optional)" />
+      <button onclick="addKey()">Add Key</button>
     </div>
+    <div id="key-error"></div>
+    <div id="key-success"></div>
+    <ul class="key-list" id="key-list"></ul>
   </div>
 
-  <div class="container">
-    <div id="key-section">
-      <div class="key-banner">
-        <p><strong>Enter your Odds API key</strong> &mdash; Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:var(--green)">the-odds-api.com</a></p>
-        <div class="key-input-row">
-          <input type="text" id="key-input" placeholder="Paste your API key here..." />
-          <button id="key-save-btn" onclick="saveKey()">Save Key</button>
-        </div>
-        <div id="key-msg" class="key-msg"></div>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;margin:20px 0 0;justify-content:center">
-      <button class="day-btn" data-days="1">Tomorrow</button>
-      <button class="day-btn active" data-days="3">Next 3 days</button>
-      <button class="day-btn" data-days="7">Next 7 days</button>
-    </div>
-    <div id="content">
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>Fetching odds from bookmakers across all major soccer leagues...</p>
-      </div>
-    </div>
-
-    <div class="explanation">
-      <h3>How value is calculated</h3>
-      <p>
-        We collect odds from multiple bookmakers for every soccer match tomorrow.
-        For each match, we compute the <strong>consensus implied probability</strong>
-        by averaging the implied probabilities (1 / decimal odds) across all bookmakers,
-        then remove the overround (vig) to derive <strong>fair probabilities</strong>.
-        A bet has <strong>positive value</strong> when a bookmaker offers odds that are
-        higher than what the fair probability suggests &mdash; meaning you're getting
-        better-than-fair compensation for the risk. The <strong>value %</strong> tells
-        you how much edge you'd have: +5% means for every $100 wagered, you'd expect
-        $5 profit if the fair probabilities are accurate.
-      </p>
-    </div>
+  <div id="content">
+    <div class="loading"><div class="spinner"></div><p>Loading value bets...</p></div>
   </div>
+</div>
 
-  <script>
-    let currentDays = 3;
+<script>
+  // --- Keys Panel ---
+  function toggleKeysPanel() {
+    document.getElementById('keys-panel').classList.toggle('open');
+  }
 
-    document.querySelectorAll('.day-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentDays = parseInt(btn.dataset.days);
-        loadData();
+  async function loadKeyList() {
+    try {
+      const res = await fetch('/api/keys');
+      const keys = await res.json();
+      const list = document.getElementById('key-list');
+      if (keys.length === 0) {
+        list.innerHTML = '<li class="no-keys">No API keys configured yet</li>';
+        return;
+      }
+      list.innerHTML = keys.map(k => `
+        <li class="key-item">
+          <div>
+            <span class="label">${esc(k.label)}</span>
+            <span class="masked">${esc(k.masked)}</span>
+          </div>
+          <button class="delete-btn" onclick="deleteKey(${k.index})">Remove</button>
+        </li>
+      `).join('');
+    } catch (e) {
+      document.getElementById('key-list').innerHTML = '<li class="no-keys">Failed to load keys</li>';
+    }
+  }
+
+  async function addKey() {
+    const keyInput = document.querySelector('.key-form input[name="key"]');
+    const labelInput = document.querySelector('.key-form input[name="label"]');
+    const btn = document.querySelector('.key-form button');
+    const errEl = document.getElementById('key-error');
+    const okEl = document.getElementById('key-success');
+
+    const key = keyInput.value.trim();
+    if (!key) { errEl.textContent = 'Please enter an API key.'; return; }
+
+    errEl.textContent = '';
+    okEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Validating...';
+
+    try {
+      const res = await fetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, label: labelInput.value.trim() }),
       });
-    });
+      const data = await res.json();
+      if (data.error) {
+        errEl.textContent = data.error;
+      } else {
+        okEl.textContent = 'Key added successfully!';
+        keyInput.value = '';
+        labelInput.value = '';
+        loadKeyList();
+        loadData();
+      }
+    } catch (e) {
+      errEl.textContent = 'Network error: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add Key';
+    }
+  }
 
-    async function loadData() {
-      const content = document.getElementById('content');
-      content.innerHTML = '<div class="loading"><div class="spinner"></div><p>Fetching odds from bookmakers across all major soccer leagues...</p></div>';
-      try {
-        const res = await fetch(`/api/value-bets?days=${currentDays}`);
-        const data = await res.json();
+  async function deleteKey(index) {
+    if (!confirm('Remove this API key?')) return;
+    try {
+      await fetch(`/api/keys/${index}`, { method: 'DELETE' });
+      loadKeyList();
+    } catch (e) {}
+  }
 
-        if (data.error) {
-          document.getElementById('key-section').classList.remove('hidden');
-          content.innerHTML = `<div class="error-box">
-            <p><strong>Error:</strong> ${escapeHtml(data.error)}</p>
-            <p style="margin-top:8px">Use the API Key form above to add your key, or get a free one at
-              <a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a></p>
-          </div>`;
-          return;
-        }
+  // --- Value Bets ---
+  async function loadData() {
+    const content = document.getElementById('content');
+    content.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading value bets...</p></div>';
 
-        if (data.totalMatches === 0) {
-          content.innerHTML = `<div class="no-matches">
-            <p style="font-size:18px;margin-bottom:8px">No matches found for tomorrow</p>
-            <p>There may be no professional soccer games scheduled, or the odds haven't been posted yet.</p>
-          </div>`;
-          return;
-        }
+    try {
+      const res = await fetch('/api/value-bets');
+      const data = await res.json();
 
-        const positiveValue = data.valueBets.filter(m => m.bestBet.valuePercent > 0);
-        const bestValue = data.valueBets.length > 0 ? data.valueBets[0].bestBet.valuePercent : 0;
-
-        let html = `
-          <div class="date-banner">Matches for <strong>${escapeHtml(data.date)}</strong></div>
-          <div class="stats-row">
-            <div class="stat-card">
-              <div class="value">${data.totalMatches}</div>
-              <div class="label">Total Matches</div>
-            </div>
-            <div class="stat-card">
-              <div class="value">${positiveValue.length}</div>
-              <div class="label">Value Bets Found</div>
-            </div>
-            <div class="stat-card">
-              <div class="value">${bestValue > 0 ? '+' : ''}${bestValue.toFixed(1)}%</div>
-              <div class="label">Best Value</div>
-            </div>
-          </div>
-        `;
-
-        for (const match of data.valueBets) {
-          const val = match.bestBet.valuePercent;
-          const valClass = val >= 5 ? 'value-high' : val >= 0 ? 'value-medium' : 'value-low';
-          const valSign = val > 0 ? '+' : '';
-          const kickoff = new Date(match.kickoff).toLocaleTimeString('en-US', {
-            hour: '2-digit', minute: '2-digit', hour12: true
-          });
-
-          html += `
-            <div class="match-card">
-              <div class="match-header" onclick="toggleBody(this)">
-                <div>
-                  <div class="match-teams">
-                    ${escapeHtml(match.homeTeam)}<span class="vs">vs</span>${escapeHtml(match.awayTeam)}
-                  </div>
-                  <div class="match-meta">
-                    <span class="league-badge">${escapeHtml(match.league)}</span>
-                    <span>${kickoff}</span>
-                  </div>
-                </div>
-                <div class="value-badge ${valClass}">${valSign}${val.toFixed(1)}% value</div>
-              </div>
-              <div class="match-body hidden">
-                <div class="best-bet">
-                  <div class="best-bet-label">Best Value Bet</div>
-                  <div class="best-bet-row">
-                    <div class="best-bet-outcome">${escapeHtml(match.bestBet.outcome)}</div>
-                    <div class="best-bet-details">
-                      <div class="detail-item">
-                        <div class="val">${match.bestBet.bestOdds.toFixed(2)}</div>
-                        <div class="lbl">Best Odds</div>
-                      </div>
-                      <div class="detail-item">
-                        <div class="val">${match.bestBet.avgOdds.toFixed(2)}</div>
-                        <div class="lbl">Avg Odds</div>
-                      </div>
-                      <div class="detail-item">
-                        <div class="val">${(match.bestBet.fairProbability * 100).toFixed(1)}%</div>
-                        <div class="lbl">Fair Prob</div>
-                      </div>
-                      <div class="detail-item">
-                        <div class="val">${escapeHtml(match.bestBet.bestBookmaker)}</div>
-                        <div class="lbl">Bookmaker</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="outcomes-grid">
-                  ${match.allOutcomes.map(o => renderOutcome(o)).join('')}
-                </div>
-              </div>
-            </div>
-          `;
-        }
-
-        content.innerHTML = html;
-      } catch (err) {
+      if (data.error === 'NO_KEYS' || data.error === 'ALL_KEYS_FAILED') {
+        document.getElementById('keys-panel').classList.add('open');
         content.innerHTML = `<div class="error-box">
-          <p><strong>Failed to load data:</strong> ${escapeHtml(err.message)}</p>
+          <p><strong>No valid API key.</strong> Add your key above to get started.</p>
+          <p style="margin-top:8px;font-size:13px;color:#8b90a0">
+            Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:#00b894">the-odds-api.com</a>
+          </p>
         </div>`;
-      }
-    }
-
-    function renderOutcome(o) {
-      const valSign = o.valuePercent > 0 ? '+' : '';
-      const valColor = o.valuePercent >= 5 ? 'var(--green)' : o.valuePercent >= 0 ? 'var(--yellow)' : 'var(--red)';
-      const barWidth = Math.min(Math.max(o.fairProbability * 100, 5), 95);
-
-      let oddsChips = '';
-      const sorted = [...o.allOdds].sort((a, b) => b.price - a.price);
-      for (const entry of sorted) {
-        const isBest = entry.bookmaker === o.bestBookmaker && entry.price === o.bestOdds;
-        oddsChips += `<span class="bk-chip ${isBest ? 'best' : ''}">${escapeHtml(entry.bookmaker)} ${entry.price.toFixed(2)}</span>`;
-      }
-
-      return `
-        <div class="outcome-card">
-          <div class="outcome-name">${escapeHtml(o.outcome)}</div>
-          <div class="outcome-stats">
-            <span>Fair prob</span>
-            <span class="val">${(o.fairProbability * 100).toFixed(1)}%</span>
-          </div>
-          <div class="outcome-stats">
-            <span>Best odds</span>
-            <span class="val">${o.bestOdds.toFixed(2)} (${escapeHtml(o.bestBookmaker)})</span>
-          </div>
-          <div class="outcome-stats">
-            <span>Avg / Range</span>
-            <span class="val">${o.avgOdds.toFixed(2)} (${o.minOdds.toFixed(2)}-${o.maxOdds.toFixed(2)})</span>
-          </div>
-          <div class="outcome-stats">
-            <span>Value</span>
-            <span class="val" style="color:${valColor}">${valSign}${o.valuePercent.toFixed(1)}%</span>
-          </div>
-          <div class="odds-bar"><div class="odds-bar-fill" style="width:${barWidth}%"></div></div>
-          <div class="bookmaker-odds">${oddsChips}</div>
-        </div>
-      `;
-    }
-
-    function toggleBody(header) {
-      const body = header.nextElementSibling;
-      body.classList.toggle('hidden');
-    }
-
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    }
-
-    function toggleKeyInput() {
-      document.getElementById('key-section').classList.toggle('hidden');
-    }
-
-    async function checkKeyStatus() {
-      try {
-        const res = await fetch('/api/key-status');
-        const data = await res.json();
-        if (data.hasKey) {
-          document.getElementById('key-section').classList.add('hidden');
-        }
-      } catch (e) {}
-    }
-
-    async function saveKey() {
-      const input = document.getElementById('key-input');
-      const btn = document.getElementById('key-save-btn');
-      const msg = document.getElementById('key-msg');
-      const key = input.value.trim();
-
-      if (!key) {
-        msg.className = 'key-msg error';
-        msg.textContent = 'Please enter an API key.';
         return;
       }
 
-      btn.disabled = true;
-      btn.textContent = 'Validating...';
-      msg.className = 'key-msg';
-      msg.textContent = '';
-
-      try {
-        const res = await fetch('/api/set-key', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key }),
-        });
-        const data = await res.json();
-
-        if (data.error) {
-          msg.className = 'key-msg error';
-          msg.textContent = data.error;
-        } else {
-          msg.className = 'key-msg success';
-          msg.textContent = `Key saved! Loaded ${data.leagues} soccer leagues.`;
-          setTimeout(() => {
-            document.getElementById('key-section').classList.add('hidden');
-            loadData();
-          }, 1500);
-        }
-      } catch (e) {
-        msg.className = 'key-msg error';
-        msg.textContent = 'Failed to save key: ' + e.message;
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Save Key';
+      if (data.error) {
+        content.innerHTML = `<div class="error-box"><p>${esc(data.error)}</p></div>`;
+        return;
       }
+
+      if (data.totalMatches === 0) {
+        content.innerHTML = `<div class="empty">
+          <p style="font-size:18px;margin-bottom:8px">No value bets found for today</p>
+          <p>There may be no soccer matches with positive value right now, or odds haven't been posted yet.</p>
+        </div>`;
+        return;
+      }
+
+      let html = `<div class="date">Today &mdash; <strong>${esc(data.date)}</strong> &mdash; ${data.totalMatches} value bet${data.totalMatches !== 1 ? 's' : ''} found</div>`;
+      html += '<div class="bet-list">';
+
+      data.valueBets.forEach((m, i) => {
+        const v = m.bestBet.valuePercent;
+        const cls = v >= 5 ? 'val-high' : v >= 2 ? 'val-med' : 'val-low';
+        const kickoff = new Date(m.kickoff).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+        html += `
+          <div class="bet-row" onclick="toggle(${i})">
+            <div class="bet-rank">#${i + 1}</div>
+            <div class="bet-value ${cls}">+${v.toFixed(1)}%</div>
+            <div class="bet-info">
+              <div class="bet-teams">${esc(m.homeTeam)} <span class="vs">vs</span> ${esc(m.awayTeam)}</div>
+              <div class="bet-meta">
+                <span>${esc(m.league)}</span>
+                <span>${kickoff}</span>
+                <span>${m.bestBet.numBookmakers} bookmakers</span>
+              </div>
+            </div>
+            <div class="bet-pick">
+              <div class="outcome">${esc(m.bestBet.outcome)}</div>
+              <div class="odds">${m.bestBet.bestOdds.toFixed(2)}</div>
+              <div class="bk">${esc(m.bestBet.bestBookmaker)}</div>
+            </div>
+          </div>
+          <div class="bet-details" id="details-${i}">
+            <div style="font-size:12px;color:#8b90a0;margin-bottom:8px">All outcomes for this match:</div>
+            <div class="outcomes-row">
+              ${m.allOutcomes.map(o => {
+                const ov = o.valuePercent;
+                const oc = ov > 0 ? '#00b894' : '#e17055';
+                return `<div class="outcome-chip">
+                  <div class="name">${esc(o.outcome)}</div>
+                  <div class="stat"><span>Fair prob</span> <span class="v">${(o.fairProbability * 100).toFixed(1)}%</span></div>
+                  <div class="stat"><span>Best odds</span> <span class="v">${o.bestOdds.toFixed(2)} (${esc(o.bestBookmaker)})</span></div>
+                  <div class="stat"><span>Avg odds</span> <span class="v">${o.avgOdds.toFixed(2)}</span></div>
+                  <div class="stat"><span>Value</span> <span class="v" style="color:${oc}">${ov > 0 ? '+' : ''}${ov.toFixed(1)}%</span></div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      content.innerHTML = html;
+    } catch (err) {
+      content.innerHTML = `<div class="error-box"><p>Failed to load: ${esc(err.message)}</p></div>`;
     }
+  }
 
-    // Allow pressing Enter in the input to save
-    document.getElementById('key-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') saveKey();
-    });
+  function toggle(i) {
+    document.getElementById('details-' + i).classList.toggle('open');
+  }
 
-    checkKeyStatus();
-    loadData();
-  </script>
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Allow Enter in key input
+  document.querySelector('.key-form input[name="key"]').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addKey();
+  });
+
+  // Init
+  loadKeyList();
+  loadData();
+</script>
 </body>
 </html>
