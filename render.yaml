@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: connection-finder
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: APOLLO_API_KEY
+        sync: false
+      - key: COMPANY_DOMAIN
+        sync: false
+      - key: NODE_ENV
+        value: production

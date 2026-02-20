@@ -179,23 +179,23 @@
   <!-- Settings Panel -->
   <div class="panel" id="settings-panel">
     <h2>Configuration</h2>
-    <p class="hint">
+    <p class="hint" id="settings-hint">
       Enter your <a href="https://app.apollo.io/#/settings/integrations/api" target="_blank">Apollo.io API key</a>
       and your company's domain to get started.
     </p>
-    <div class="form-group">
+    <div class="form-group" id="apikey-group">
       <label>Apollo API Key</label>
       <div class="input-row">
         <input type="password" id="inp-apikey" placeholder="Enter your Apollo.io API key..." />
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="domain-group">
       <label>Your Company Domain</label>
       <div class="input-row">
         <input type="text" id="inp-domain" placeholder="e.g. yourcompany.com" />
       </div>
     </div>
-    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+    <button class="btn btn-primary" id="save-settings-btn" onclick="saveSettings()">Save Settings</button>
     <div id="settings-msg"></div>
   </div>
 
@@ -246,15 +246,39 @@
   async function loadSettings() {
     try {
       const s = await api('/api/settings');
+
+      // Handle env-var configured state
+      const keyGroup = document.getElementById('apikey-group');
+      const domainGroup = document.getElementById('domain-group');
+      const hint = document.getElementById('settings-hint');
+      const saveBtn = document.getElementById('save-settings-btn');
+      let allFromEnv = true;
+
+      if (s.apiKeyFromEnv) {
+        keyGroup.innerHTML = `<label>Apollo API Key</label><div style="font-size:13px;color:#00b894;padding:4px 0">Configured by admin (env var)</div>`;
+      } else if (s.maskedKey) {
+        document.getElementById('inp-apikey').placeholder = `Current: ${s.maskedKey}`;
+        allFromEnv = false;
+      } else {
+        allFromEnv = false;
+      }
+
+      if (s.domainFromEnv) {
+        domainGroup.innerHTML = `<label>Your Company Domain</label><div style="font-size:13px;color:#00b894;padding:4px 0">${esc(s.companyDomain)}</div>`;
+      } else {
+        if (s.companyDomain) document.getElementById('inp-domain').value = s.companyDomain;
+        allFromEnv = false;
+      }
+
+      if (allFromEnv && s.hasApiKey && s.companyDomain) {
+        hint.textContent = 'Configuration is managed via environment variables.';
+        saveBtn.style.display = 'none';
+      }
+
       if (!s.hasApiKey) {
         document.getElementById('settings-panel').classList.add('open');
       }
-      if (s.companyDomain) {
-        document.getElementById('inp-domain').value = s.companyDomain;
-      }
-      if (s.maskedKey) {
-        document.getElementById('inp-apikey').placeholder = `Current: ${s.maskedKey}`;
-      }
+
       settingsLoaded = true;
       return s;
     } catch (e) {

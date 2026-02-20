@@ -7,7 +7,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
-const TEAM_CACHE_FILE = path.join(__dirname, 'team-cache.json');
+
+// --- Configuration (env vars take priority over settings.json) ---
+function getConfig() {
+  const file = loadJSON(SETTINGS_FILE, {});
+  return {
+    apiKey: process.env.APOLLO_API_KEY || file.apiKey || '',
+    companyDomain: normalizeDomain(process.env.COMPANY_DOMAIN || file.companyDomain || ''),
+    apiKeyFromEnv: !!process.env.APOLLO_API_KEY,
+    domainFromEnv: !!process.env.COMPANY_DOMAIN,
+  };
+}
 
 // --- File helpers ---
 function loadJSON(file, fallback) {
@@ -15,8 +25,25 @@ function loadJSON(file, fallback) {
 }
 
 function saveJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); } catch { /* read-only fs is ok */ }
 }
+
+// --- In-memory team cache (survives requests, lost on restart) ---
+let teamCache = { lastSync: null, companyDomain: '', people: [] };
+
+// Try to load from disk on startup (for local dev persistence)
+function loadTeamCacheFromDisk() {
+  const file = path.join(__dirname, 'team-cache.json');
+  const data = loadJSON(file, null);
+  if (data && data.people) teamCache = data;
+}
+
+function saveTeamCacheToDisk() {
+  const file = path.join(__dirname, 'team-cache.json');
+  saveJSON(file, teamCache);
+}
+
+loadTeamCacheFromDisk();
 
 // --- Apollo API ---
 function apolloRequest(method, apiPath, apiKey, params = {}, body = null) {
@@ -101,15 +128,26 @@ app.use(express.static(path.join(__dirname, 'public'), { etag: false }));
 // ==================== SETTINGS ====================
 
 app.get('/api/settings', (req, res) => {
-  const s = loadJSON(SETTINGS_FILE, {});
+  const cfg = getConfig();
   res.json({
-    hasApiKey: !!s.apiKey,
-    maskedKey: s.apiKey ? s.apiKey.slice(0, 8) + '...' + s.apiKey.slice(-4) : '',
-    companyDomain: s.companyDomain || '',
+    hasApiKey: !!cfg.apiKey,
+    maskedKey: cfg.apiKey ? cfg.apiKey.slice(0, 8) + '...' + cfg.apiKey.slice(-4) : '',
+    companyDomain: cfg.companyDomain,
+    apiKeyFromEnv: cfg.apiKeyFromEnv,
+    domainFromEnv: cfg.domainFromEnv,
   });
 });
 
 app.post('/api/settings', (req, res) => {
+  const cfg = getConfig();
+  // Don't allow overwriting env-var config from the UI
+  if (cfg.apiKeyFromEnv && req.body.apiKey !== undefined) {
+    return res.status(400).json({ error: 'API key is configured via environment variable' });
+  }
+  if (cfg.domainFromEnv && req.body.companyDomain !== undefined) {
+    return res.status(400).json({ error: 'Company domain is configured via environment variable' });
+  }
+
   const s = loadJSON(SETTINGS_FILE, {});
   if (req.body.apiKey !== undefined) s.apiKey = req.body.apiKey.trim();
   if (req.body.companyDomain !== undefined)
@@ -121,24 +159,23 @@ app.post('/api/settings', (req, res) => {
 // ==================== TEAM SYNC ====================
 
 app.get('/api/team/status', (req, res) => {
-  const cache = loadJSON(TEAM_CACHE_FILE, {});
   res.json({
     syncing: syncStatus.active,
     fetched: syncStatus.fetched,
     total: syncStatus.total,
     error: syncStatus.error,
-    lastSync: cache.lastSync || null,
-    teamSize: (cache.people || []).length,
-    companyDomain: cache.companyDomain || '',
+    lastSync: teamCache.lastSync || null,
+    teamSize: (teamCache.people || []).length,
+    companyDomain: teamCache.companyDomain || '',
   });
 });
 
 app.post('/api/team/sync', (req, res) => {
   if (syncStatus.active) return res.status(409).json({ error: 'Sync already in progress' });
 
-  const s = loadJSON(SETTINGS_FILE, {});
-  if (!s.apiKey) return res.status(400).json({ error: 'Set your Apollo API key first' });
-  if (!s.companyDomain) return res.status(400).json({ error: 'Set your company domain first' });
+  const cfg = getConfig();
+  if (!cfg.apiKey) return res.status(400).json({ error: 'Set your Apollo API key first' });
+  if (!cfg.companyDomain) return res.status(400).json({ error: 'Set your company domain first' });
 
   syncStatus = { active: true, fetched: 0, total: 0, error: null };
   res.json({ started: true });
@@ -154,10 +191,10 @@ app.post('/api/team/sync', (req, res) => {
         const { status, data } = await apolloRequest(
           'POST',
           '/api/v1/mixed_people/api_search',
-          s.apiKey,
+          cfg.apiKey,
           {},
           {
-            q_organization_domains: s.companyDomain,
+            q_organization_domains: cfg.companyDomain,
             page,
             per_page: 100,
           }
@@ -183,9 +220,9 @@ app.post('/api/team/sync', (req, res) => {
         await new Promise(r => setTimeout(r, 300));
       }
 
-      saveJSON(TEAM_CACHE_FILE, {
+      teamCache = {
         lastSync: new Date().toISOString(),
-        companyDomain: s.companyDomain,
+        companyDomain: cfg.companyDomain,
         people: people.map(p => ({
           id: p.id,
           name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
@@ -210,8 +247,9 @@ app.post('/api/team/sync', (req, res) => {
             current: e.current,
           })),
         })),
-      });
+      };
 
+      saveTeamCacheToDisk();
       syncStatus = { active: false, fetched: people.length, total: people.length, error: null };
       console.log(`Team sync complete: ${people.length} people cached`);
     } catch (err) {
@@ -227,11 +265,10 @@ app.post('/api/search', async (req, res) => {
   const query = (req.body.query || '').trim();
   if (!query) return res.status(400).json({ error: 'Enter a company domain, email, or LinkedIn URL' });
 
-  const s = loadJSON(SETTINGS_FILE, {});
-  if (!s.apiKey) return res.status(400).json({ error: 'Set your Apollo API key first' });
+  const cfg = getConfig();
+  if (!cfg.apiKey) return res.status(400).json({ error: 'Set your Apollo API key first' });
 
-  const cache = loadJSON(TEAM_CACHE_FILE, {});
-  if (!cache.people || !cache.people.length) {
+  if (!teamCache.people || !teamCache.people.length) {
     return res.status(400).json({ error: 'Sync your team first before searching' });
   }
 
@@ -246,7 +283,7 @@ app.post('/api/search', async (req, res) => {
     // --- Resolve target ---
     if (query.includes('linkedin.com')) {
       inputType = 'linkedin';
-      const { status, data } = await apolloRequest('POST', '/api/v1/people/match', s.apiKey, {
+      const { status, data } = await apolloRequest('POST', '/api/v1/people/match', cfg.apiKey, {
         linkedin_url: query,
       });
       if (status === 200 && data.person) {
@@ -262,7 +299,7 @@ app.post('/api/search', async (req, res) => {
       }
     } else if (query.includes('@')) {
       inputType = 'email';
-      const { status, data } = await apolloRequest('POST', '/api/v1/people/match', s.apiKey, {
+      const { status, data } = await apolloRequest('POST', '/api/v1/people/match', cfg.apiKey, {
         email: query,
       });
       if (status === 200 && data.person) {
@@ -281,7 +318,7 @@ app.post('/api/search', async (req, res) => {
       const { status, data } = await apolloRequest(
         'GET',
         '/api/v1/organizations/enrich',
-        s.apiKey,
+        cfg.apiKey,
         { domain: targetDomain }
       );
       if (status === 200 && data.organization) {
@@ -304,7 +341,7 @@ app.post('/api/search', async (req, res) => {
     const connections = [];
     const domainBase = targetDomain ? targetDomain.split('.')[0] : '';
 
-    for (const person of cache.people) {
+    for (const person of teamCache.people) {
       const matchingJobs = [];
 
       for (const job of person.employmentHistory || []) {
@@ -361,18 +398,18 @@ app.post('/api/search', async (req, res) => {
       const { status, data: revData } = await apolloRequest(
         'POST',
         '/api/v1/mixed_people/api_search',
-        s.apiKey,
+        cfg.apiKey,
         {},
         searchBody
       );
 
       if (status === 200 && revData.people) {
-        const ourDomain = normalizeDomain(s.companyDomain);
+        const ourDomain = normalizeDomain(cfg.companyDomain);
         const ourBase = ourDomain ? ourDomain.split('.')[0] : '';
 
         // Try to determine our company name from cached data
         let ourCompanyName = '';
-        for (const p of cache.people) {
+        for (const p of teamCache.people) {
           const currentJob = (p.employmentHistory || []).find(e => e.current);
           if (currentJob && currentJob.orgName) {
             ourCompanyName = currentJob.orgName;
@@ -451,8 +488,8 @@ app.post('/api/search', async (req, res) => {
           : null,
       },
       inputType,
-      teamSize: cache.people.length,
-      hasEmploymentData: cache.people.some(
+      teamSize: teamCache.people.length,
+      hasEmploymentData: teamCache.people.some(
         p => p.employmentHistory && p.employmentHistory.length > 1
       ),
     });
@@ -466,8 +503,8 @@ app.post('/api/search', async (req, res) => {
 app.use('/api', (req, res) => res.status(404).json({ error: 'Unknown API endpoint' }));
 
 app.listen(PORT, () => {
-  console.log(`Connection Finder running at http://localhost:${PORT}`);
-  const s = loadJSON(SETTINGS_FILE, {});
-  console.log(`Apollo API key: ${s.apiKey ? 'configured' : 'not set'}`);
-  console.log(`Company domain: ${s.companyDomain || 'not set'}`);
+  const cfg = getConfig();
+  console.log(`Connection Finder running on port ${PORT}`);
+  console.log(`Apollo API key: ${cfg.apiKey ? 'configured' : 'not set'}${cfg.apiKeyFromEnv ? ' (env)' : ''}`);
+  console.log(`Company domain: ${cfg.companyDomain || 'not set'}${cfg.domainFromEnv ? ' (env)' : ''}`);
 });
