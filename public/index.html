@@ -3,342 +3,571 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Soccer Value Bets</title>
+  <title>Connection Finder</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #0f1117; color: #e1e4ed; min-height: 100vh;
     }
-    .wrap { max-width: 800px; margin: 0 auto; padding: 20px; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 20px; }
 
     /* Header */
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    header h1 { font-size: 22px; }
+    header h1 { font-size: 22px; font-weight: 700; }
     header h1 span { color: #00b894; }
-    .keys-toggle {
+    .settings-toggle {
       background: #1a1d28; border: 1px solid #2e3345; color: #8b90a0;
       padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
     }
-    .keys-toggle:hover { border-color: #6c5ce7; color: #e1e4ed; }
+    .settings-toggle:hover { border-color: #6c5ce7; color: #e1e4ed; }
 
-    /* Key Management Panel */
-    #keys-panel {
+    /* Panels */
+    .panel {
       background: #1a1d28; border: 1px solid #2e3345; border-radius: 12px;
-      padding: 20px; margin-bottom: 24px; display: none;
+      padding: 20px; margin-bottom: 16px; display: none;
     }
-    #keys-panel.open { display: block; }
-    #keys-panel h2 { font-size: 16px; margin-bottom: 12px; }
-    .key-form { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-    .key-form input {
-      padding: 10px 12px; border-radius: 8px; border: 1px solid #2e3345;
-      background: #0f1117; color: #e1e4ed; font-size: 14px; outline: none;
-    }
-    .key-form input:focus { border-color: #6c5ce7; }
-    .key-form input[name="key"] { flex: 1; min-width: 200px; font-family: monospace; }
-    .key-form input[name="label"] { width: 120px; }
-    .key-form button {
-      padding: 10px 18px; border-radius: 8px; border: none;
-      background: #00b894; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
-    }
-    .key-form button:disabled { opacity: 0.5; }
-    #key-error { color: #e17055; font-size: 13px; margin-bottom: 12px; }
-    #key-success { color: #00b894; font-size: 13px; margin-bottom: 12px; }
-    .key-list { list-style: none; }
-    .key-item {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 14px; background: #0f1117; border: 1px solid #2e3345;
-      border-radius: 8px; margin-bottom: 8px; font-size: 14px;
-    }
-    .key-item .label { font-weight: 600; margin-right: 12px; }
-    .key-item .masked { color: #8b90a0; font-family: monospace; font-size: 13px; }
-    .key-item .delete-btn {
-      background: none; border: 1px solid #e17055; color: #e17055;
-      padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
-    }
-    .key-item .delete-btn:hover { background: #e1705533; }
-    .no-keys { color: #8b90a0; font-size: 14px; text-align: center; padding: 12px; }
+    .panel.open { display: block; }
+    .panel h2 { font-size: 16px; margin-bottom: 14px; color: #e1e4ed; }
+    .panel p.hint { font-size: 13px; color: #8b90a0; margin-bottom: 14px; }
+    .panel p.hint a { color: #00b894; text-decoration: none; }
 
-    /* Date */
-    .date { text-align: center; color: #8b90a0; font-size: 14px; margin-bottom: 20px; }
-    .date strong { color: #e1e4ed; }
+    /* Forms */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; color: #8b90a0; margin-bottom: 6px; font-weight: 600; }
+    .input-row { display: flex; gap: 8px; }
+    input[type="text"], input[type="password"] {
+      padding: 10px 14px; border-radius: 8px; border: 1px solid #2e3345;
+      background: #0f1117; color: #e1e4ed; font-size: 14px; outline: none; flex: 1;
+    }
+    input:focus { border-color: #6c5ce7; }
+    .btn {
+      padding: 10px 20px; border-radius: 8px; border: none; font-weight: 600;
+      font-size: 14px; cursor: pointer; white-space: nowrap;
+    }
+    .btn-primary { background: #00b894; color: #fff; }
+    .btn-primary:hover { background: #00a381; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: #2e3345; color: #e1e4ed; }
+    .btn-secondary:hover { background: #3d4259; }
+    .msg-ok { color: #00b894; font-size: 13px; margin-top: 8px; }
+    .msg-err { color: #e17055; font-size: 13px; margin-top: 8px; }
+
+    /* Team bar */
+    #team-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #1a1d28; border: 1px solid #2e3345; border-radius: 10px;
+      padding: 12px 18px; margin-bottom: 16px;
+    }
+    .team-info { font-size: 14px; color: #8b90a0; }
+    .team-info strong { color: #e1e4ed; }
+    .team-info .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot-ok { background: #00b894; }
+    .dot-warn { background: #fdcb6e; }
+    .dot-none { background: #636e72; }
+
+    /* Search */
+    #search-section { margin-bottom: 20px; }
+    .search-bar { display: flex; gap: 8px; }
+    .search-bar input {
+      flex: 1; padding: 14px 18px; border-radius: 10px; border: 1px solid #2e3345;
+      background: #1a1d28; color: #e1e4ed; font-size: 15px; outline: none;
+    }
+    .search-bar input:focus { border-color: #6c5ce7; }
+    .search-bar input::placeholder { color: #636e72; }
+    .search-bar button { padding: 14px 28px; border-radius: 10px; font-size: 15px; }
+    .search-hint { font-size: 12px; color: #636e72; margin-top: 8px; padding-left: 4px; }
 
     /* Loading */
-    .loading { text-align: center; padding: 60px 0; color: #8b90a0; }
+    .loading { text-align: center; padding: 50px 0; color: #8b90a0; }
     .spinner {
-      width: 32px; height: 32px; border: 3px solid #2e3345; border-top-color: #00b894;
+      width: 28px; height: 28px; border: 3px solid #2e3345; border-top-color: #00b894;
       border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Error / empty */
-    .error-box {
-      background: #e1705522; border: 1px solid #e17055; border-radius: 10px;
-      padding: 20px; text-align: center; margin: 20px 0;
+    /* Target info */
+    .target-card {
+      background: #1a1d28; border: 1px solid #2e3345; border-radius: 12px;
+      padding: 18px 20px; margin-bottom: 16px;
     }
-    .empty { text-align: center; padding: 60px 0; color: #8b90a0; }
+    .target-header { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+    .target-logo {
+      width: 44px; height: 44px; border-radius: 8px; background: #2e3345;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+      font-weight: 700; color: #00b894; overflow: hidden;
+    }
+    .target-logo img { width: 100%; height: 100%; object-fit: cover; }
+    .target-name { font-size: 18px; font-weight: 700; }
+    .target-domain { font-size: 13px; color: #8b90a0; }
+    .target-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #8b90a0; }
+    .target-meta span { display: flex; align-items: center; gap: 4px; }
+    .target-person {
+      margin-top: 12px; padding-top: 12px; border-top: 1px solid #2e3345;
+      font-size: 13px; color: #8b90a0;
+    }
+    .target-person strong { color: #e1e4ed; }
 
-    /* Value bet rows */
-    .bet-list { display: flex; flex-direction: column; gap: 10px; }
-    .bet-row {
-      display: flex; align-items: center; gap: 16px;
+    /* Results */
+    .results-header { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+    .results-header span { color: #00b894; }
+    .section-label {
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+      color: #8b90a0; margin: 20px 0 10px; padding-left: 4px;
+    }
+
+    .connection-card {
+      display: flex; gap: 14px; align-items: flex-start;
       background: #1a1d28; border: 1px solid #2e3345; border-radius: 10px;
-      padding: 14px 18px; transition: border-color 0.2s; cursor: pointer;
+      padding: 16px 18px; margin-bottom: 8px; transition: border-color 0.2s;
     }
-    .bet-row:hover { border-color: #6c5ce7; }
-    .bet-rank {
-      font-size: 13px; font-weight: 700; color: #8b90a0; min-width: 28px; text-align: center;
+    .connection-card:hover { border-color: #6c5ce7; }
+    .avatar {
+      width: 40px; height: 40px; border-radius: 50%; background: #2e3345;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 700; color: #6c5ce7; flex-shrink: 0; overflow: hidden;
     }
-    .bet-value {
-      font-size: 18px; font-weight: 700; min-width: 75px; text-align: right;
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .conn-info { flex: 1; min-width: 0; }
+    .conn-name { font-size: 15px; font-weight: 600; }
+    .conn-name a { color: #e1e4ed; text-decoration: none; }
+    .conn-name a:hover { color: #6c5ce7; }
+    .conn-title { font-size: 13px; color: #8b90a0; margin-top: 1px; }
+    .conn-location { font-size: 12px; color: #636e72; margin-top: 2px; }
+    .conn-match {
+      margin-top: 8px; padding: 8px 12px; background: #0f1117;
+      border: 1px solid #2e3345; border-radius: 8px; font-size: 13px;
     }
-    .val-high { color: #00b894; }
-    .val-med { color: #fdcb6e; }
-    .val-low { color: #e17055; }
-    .bet-info { flex: 1; min-width: 0; }
-    .bet-teams { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bet-teams .vs { color: #8b90a0; font-weight: 400; }
-    .bet-meta { font-size: 12px; color: #8b90a0; margin-top: 2px; display: flex; gap: 10px; flex-wrap: wrap; }
-    .bet-pick {
-      background: #242836; border: 1px solid #2e3345; border-radius: 8px;
-      padding: 8px 14px; text-align: center; min-width: 120px;
+    .conn-match .label { color: #00b894; font-weight: 600; font-size: 12px; margin-bottom: 3px; }
+    .conn-match .detail { color: #e1e4ed; }
+    .conn-match .dates { color: #8b90a0; font-size: 12px; margin-top: 2px; }
+    .conn-links { display: flex; gap: 8px; margin-top: 8px; }
+    .conn-links a {
+      font-size: 12px; color: #6c5ce7; text-decoration: none; padding: 3px 8px;
+      border: 1px solid #6c5ce733; border-radius: 6px;
     }
-    .bet-pick .outcome { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-    .bet-pick .odds { font-size: 16px; font-weight: 700; color: #00b894; }
-    .bet-pick .bk { font-size: 11px; color: #8b90a0; }
+    .conn-links a:hover { background: #6c5ce722; border-color: #6c5ce7; }
 
-    /* Expanded details */
-    .bet-details {
-      display: none; background: #1a1d28; border: 1px solid #2e3345;
-      border-top: none; border-radius: 0 0 10px 10px; padding: 14px 18px;
-      margin-top: -10px; margin-bottom: 10px;
+    /* Empty / error */
+    .empty-state {
+      text-align: center; padding: 50px 20px; color: #8b90a0;
     }
-    .bet-details.open { display: block; }
-    .outcomes-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .outcome-chip {
-      background: #0f1117; border: 1px solid #2e3345; border-radius: 8px;
-      padding: 10px 14px; flex: 1; min-width: 140px;
+    .empty-state .icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+    .empty-state p { margin-bottom: 6px; }
+    .empty-state .note { font-size: 13px; color: #636e72; }
+    .error-box {
+      background: #e1705515; border: 1px solid #e1705544; border-radius: 10px;
+      padding: 16px 20px; text-align: center; color: #e17055; font-size: 14px;
     }
-    .outcome-chip .name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-    .outcome-chip .stat { font-size: 12px; color: #8b90a0; display: flex; justify-content: space-between; }
-    .outcome-chip .stat .v { color: #e1e4ed; }
+
+    /* Progress bar */
+    .progress-bar {
+      height: 4px; background: #2e3345; border-radius: 2px; margin-top: 8px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; background: #00b894; border-radius: 2px; transition: width 0.3s;
+    }
   </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>Soccer <span>Value Bets</span></h1>
-    <button class="keys-toggle" onclick="toggleKeysPanel()">API Keys</button>
+    <h1>Connection<span>Finder</span></h1>
+    <button class="settings-toggle" onclick="toggleSettings()">Settings</button>
   </header>
 
-  <div id="keys-panel">
-    <h2>Manage API Keys</h2>
-    <p style="font-size:13px;color:#8b90a0;margin-bottom:12px">
-      Add one or more keys from <a href="https://the-odds-api.com" target="_blank" style="color:#00b894">the-odds-api.com</a>.
-      If one expires, the next will be used automatically.
+  <!-- Settings Panel -->
+  <div class="panel" id="settings-panel">
+    <h2>Configuration</h2>
+    <p class="hint">
+      Enter your <a href="https://app.apollo.io/#/settings/integrations/api" target="_blank">Apollo.io API key</a>
+      and your company's domain to get started.
     </p>
-    <div class="key-form">
-      <input name="key" placeholder="Paste API key..." />
-      <input name="label" placeholder="Label (optional)" />
-      <button onclick="addKey()">Add Key</button>
+    <div class="form-group">
+      <label>Apollo API Key</label>
+      <div class="input-row">
+        <input type="password" id="inp-apikey" placeholder="Enter your Apollo.io API key..." />
+      </div>
     </div>
-    <div id="key-error"></div>
-    <div id="key-success"></div>
-    <ul class="key-list" id="key-list"></ul>
+    <div class="form-group">
+      <label>Your Company Domain</label>
+      <div class="input-row">
+        <input type="text" id="inp-domain" placeholder="e.g. yourcompany.com" />
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+    <div id="settings-msg"></div>
   </div>
 
-  <div id="content">
-    <div class="loading"><div class="spinner"></div><p>Loading value bets...</p></div>
+  <!-- Team Sync Bar -->
+  <div id="team-bar">
+    <div class="team-info" id="team-info">Loading...</div>
+    <button class="btn btn-secondary" id="sync-btn" onclick="syncTeam()">Sync Team</button>
   </div>
+
+  <!-- Search -->
+  <div id="search-section">
+    <div class="search-bar">
+      <input type="text" id="search-input"
+        placeholder="Enter a company domain, person's email, or LinkedIn URL..."
+        onkeydown="if(event.key==='Enter')doSearch()" />
+      <button class="btn btn-primary" id="search-btn" onclick="doSearch()">Search</button>
+    </div>
+    <div class="search-hint">Accepts company domains (microsoft.com), emails (jane@company.com), or LinkedIn profile URLs</div>
+  </div>
+
+  <!-- Results -->
+  <div id="results"></div>
 </div>
 
 <script>
-  // --- API helper ---
-  async function apiFetch(url, opts) {
+  // ========== API HELPER ==========
+  async function api(url, opts) {
     const res = await fetch(url, opts);
-    const ct = res.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      throw new Error('Server returned HTML instead of JSON. Make sure you are running "node server.js" and accessing http://localhost:3000/');
-    }
-    return res.json();
-  }
-
-  // --- Keys Panel ---
-  function toggleKeysPanel() {
-    document.getElementById('keys-panel').classList.toggle('open');
-  }
-
-  async function loadKeyList() {
-    try {
-      const keys = await apiFetch('/api/keys');
-      const list = document.getElementById('key-list');
-      if (keys.length === 0) {
-        list.innerHTML = '<li class="no-keys">No API keys configured yet</li>';
-        document.getElementById('keys-panel').classList.add('open');
-        return;
-      }
-      list.innerHTML = keys.map(k => `
-        <li class="key-item">
-          <div>
-            <span class="label">${esc(k.label)}</span>
-            <span class="masked">${esc(k.masked)}</span>
-          </div>
-          <button class="delete-btn" onclick="deleteKey(${k.index})">Remove</button>
-        </li>
-      `).join('');
-    } catch (e) {
-      document.getElementById('key-list').innerHTML = '<li class="no-keys">Failed to load keys</li>';
-    }
-  }
-
-  async function addKey() {
-    const keyInput = document.querySelector('.key-form input[name="key"]');
-    const labelInput = document.querySelector('.key-form input[name="label"]');
-    const btn = document.querySelector('.key-form button');
-    const errEl = document.getElementById('key-error');
-    const okEl = document.getElementById('key-success');
-
-    const key = keyInput.value.trim();
-    if (!key) { errEl.textContent = 'Please enter an API key.'; return; }
-
-    errEl.textContent = '';
-    okEl.textContent = '';
-    btn.disabled = true;
-    btn.textContent = 'Validating...';
-
-    try {
-      const data = await apiFetch('/api/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, label: labelInput.value.trim() }),
-      });
-      if (data.error) {
-        errEl.textContent = data.error;
-      } else {
-        okEl.textContent = 'Key added! Loading bets...';
-        keyInput.value = '';
-        labelInput.value = '';
-        loadKeyList();
-        loadData();
-      }
-    } catch (e) {
-      errEl.textContent = 'Network error: ' + e.message;
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Add Key';
-    }
-  }
-
-  async function deleteKey(index) {
-    if (!confirm('Remove this API key?')) return;
-    try {
-      await fetch(`/api/keys/${index}`, { method: 'DELETE' });
-      loadKeyList();
-    } catch (e) {}
-  }
-
-  // --- Value Bets ---
-  async function loadData() {
-    const content = document.getElementById('content');
-    content.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading value bets...</p></div>';
-
-    try {
-      const data = await apiFetch('/api/value-bets');
-
-      if (data.error === 'NO_KEYS' || data.error === 'ALL_KEYS_FAILED') {
-        document.getElementById('keys-panel').classList.add('open');
-        content.innerHTML = `<div class="error-box">
-          <p><strong>No valid API key.</strong> Add your key above to get started.</p>
-          <p style="margin-top:8px;font-size:13px;color:#8b90a0">
-            Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:#00b894">the-odds-api.com</a>
-          </p>
-        </div>`;
-        return;
-      }
-
-      if (data.error) {
-        content.innerHTML = `<div class="error-box"><p>${esc(data.error)}</p></div>`;
-        return;
-      }
-
-      if (data.totalMatches === 0) {
-        content.innerHTML = `<div class="empty">
-          <p style="font-size:18px;margin-bottom:8px">No value bets found for today</p>
-          <p>There may be no soccer matches with positive value right now, or odds haven't been posted yet.</p>
-        </div>`;
-        return;
-      }
-
-      let html = `<div class="date">Today &mdash; <strong>${esc(data.date)}</strong> &mdash; ${data.totalMatches} value bet${data.totalMatches !== 1 ? 's' : ''} found</div>`;
-      html += '<div class="bet-list">';
-
-      data.valueBets.forEach((m, i) => {
-        const v = m.bestBet.valuePercent;
-        const cls = v >= 5 ? 'val-high' : v >= 2 ? 'val-med' : 'val-low';
-        const kickoff = new Date(m.kickoff).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-        html += `
-          <div class="bet-row" onclick="toggle(${i})">
-            <div class="bet-rank">#${i + 1}</div>
-            <div class="bet-value ${cls}">+${v.toFixed(1)}%</div>
-            <div class="bet-info">
-              <div class="bet-teams">${esc(m.homeTeam)} <span class="vs">vs</span> ${esc(m.awayTeam)}</div>
-              <div class="bet-meta">
-                <span>${esc(m.league)}</span>
-                <span>${kickoff}</span>
-                <span>${m.bestBet.numBookmakers} bookmakers</span>
-              </div>
-            </div>
-            <div class="bet-pick">
-              <div class="outcome">${esc(m.bestBet.outcome)}</div>
-              <div class="odds">${m.bestBet.bestOdds.toFixed(2)}</div>
-              <div class="bk">${esc(m.bestBet.bestBookmaker)}</div>
-            </div>
-          </div>
-          <div class="bet-details" id="details-${i}">
-            <div style="font-size:12px;color:#8b90a0;margin-bottom:8px">All outcomes for this match:</div>
-            <div class="outcomes-row">
-              ${m.allOutcomes.map(o => {
-                const ov = o.valuePercent;
-                const oc = ov > 0 ? '#00b894' : '#e17055';
-                return `<div class="outcome-chip">
-                  <div class="name">${esc(o.outcome)}</div>
-                  <div class="stat"><span>Fair prob</span> <span class="v">${(o.fairProbability * 100).toFixed(1)}%</span></div>
-                  <div class="stat"><span>Best odds</span> <span class="v">${o.bestOdds.toFixed(2)} (${esc(o.bestBookmaker)})</span></div>
-                  <div class="stat"><span>Avg odds</span> <span class="v">${o.avgOdds.toFixed(2)}</span></div>
-                  <div class="stat"><span>Value</span> <span class="v" style="color:${oc}">${ov > 0 ? '+' : ''}${ov.toFixed(1)}%</span></div>
-                </div>`;
-              }).join('')}
-            </div>
-          </div>
-        `;
-      });
-
-      html += '</div>';
-      content.innerHTML = html;
-    } catch (err) {
-      content.innerHTML = `<div class="error-box"><p>Failed to load: ${esc(err.message)}</p></div>`;
-    }
-  }
-
-  function toggle(i) {
-    document.getElementById('details-' + i).classList.toggle('open');
+    const data = await res.json();
+    if (!res.ok && data.error) throw new Error(data.error);
+    return data;
   }
 
   function esc(s) {
+    if (!s) return '';
     const d = document.createElement('div');
     d.textContent = s;
     return d.innerHTML;
   }
 
-  // Allow Enter in key input
-  document.querySelector('.key-form input[name="key"]').addEventListener('keydown', e => {
-    if (e.key === 'Enter') addKey();
-  });
+  // ========== SETTINGS ==========
+  let settingsLoaded = false;
 
-  // Init
-  loadKeyList();
-  loadData();
+  function toggleSettings() {
+    document.getElementById('settings-panel').classList.toggle('open');
+  }
+
+  async function loadSettings() {
+    try {
+      const s = await api('/api/settings');
+      if (!s.hasApiKey) {
+        document.getElementById('settings-panel').classList.add('open');
+      }
+      if (s.companyDomain) {
+        document.getElementById('inp-domain').value = s.companyDomain;
+      }
+      if (s.maskedKey) {
+        document.getElementById('inp-apikey').placeholder = `Current: ${s.maskedKey}`;
+      }
+      settingsLoaded = true;
+      return s;
+    } catch (e) {
+      document.getElementById('settings-panel').classList.add('open');
+      return {};
+    }
+  }
+
+  async function saveSettings() {
+    const msg = document.getElementById('settings-msg');
+    const apiKey = document.getElementById('inp-apikey').value.trim();
+    const domain = document.getElementById('inp-domain').value.trim();
+
+    if (!apiKey && !document.getElementById('inp-apikey').placeholder.includes('Current')) {
+      msg.className = 'msg-err';
+      msg.textContent = 'Please enter your Apollo API key.';
+      return;
+    }
+    if (!domain) {
+      msg.className = 'msg-err';
+      msg.textContent = 'Please enter your company domain.';
+      return;
+    }
+
+    try {
+      const body = { companyDomain: domain };
+      if (apiKey) body.apiKey = apiKey;
+      await api('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      msg.className = 'msg-ok';
+      msg.textContent = 'Settings saved!';
+      if (apiKey) {
+        document.getElementById('inp-apikey').value = '';
+        document.getElementById('inp-apikey').placeholder = `Current: ${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`;
+      }
+      loadTeamStatus();
+      setTimeout(() => { msg.textContent = ''; }, 3000);
+    } catch (e) {
+      msg.className = 'msg-err';
+      msg.textContent = e.message;
+    }
+  }
+
+  // ========== TEAM SYNC ==========
+  let pollTimer = null;
+
+  async function loadTeamStatus() {
+    try {
+      const st = await api('/api/team/status');
+      renderTeamBar(st);
+      if (st.syncing && !pollTimer) {
+        pollTimer = setInterval(pollSync, 1500);
+      }
+    } catch (e) {
+      document.getElementById('team-info').textContent = 'Could not load team status';
+    }
+  }
+
+  function renderTeamBar(st) {
+    const info = document.getElementById('team-info');
+    const btn = document.getElementById('sync-btn');
+
+    if (st.syncing) {
+      const pct = st.total > 0 ? Math.round((st.fetched / st.total) * 100) : 0;
+      info.innerHTML = `<span class="dot dot-warn"></span>Syncing... <strong>${st.fetched}</strong> of ${st.total} fetched (${pct}%)`;
+      btn.disabled = true;
+      btn.textContent = 'Syncing...';
+    } else if (st.teamSize > 0) {
+      const ago = st.lastSync ? timeAgo(new Date(st.lastSync)) : 'unknown';
+      info.innerHTML = `<span class="dot dot-ok"></span><strong>${st.teamSize}</strong> team members synced &middot; last synced ${esc(ago)}`;
+      btn.disabled = false;
+      btn.textContent = 'Re-sync';
+    } else {
+      info.innerHTML = '<span class="dot dot-none"></span>Team not synced yet';
+      btn.disabled = false;
+      btn.textContent = 'Sync Team';
+    }
+
+    if (st.error) {
+      info.innerHTML += ` <span style="color:#e17055;margin-left:8px">${esc(st.error)}</span>`;
+    }
+  }
+
+  async function syncTeam() {
+    const btn = document.getElementById('sync-btn');
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+
+    try {
+      await api('/api/team/sync', { method: 'POST' });
+      if (!pollTimer) pollTimer = setInterval(pollSync, 1500);
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Sync Team';
+      const info = document.getElementById('team-info');
+      info.innerHTML = `<span class="dot dot-none"></span><span style="color:#e17055">${esc(e.message)}</span>`;
+    }
+  }
+
+  async function pollSync() {
+    try {
+      const st = await api('/api/team/status');
+      renderTeamBar(st);
+      if (!st.syncing) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    } catch (e) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function timeAgo(date) {
+    const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (secs < 60) return 'just now';
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+    if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+    return `${Math.floor(secs / 86400)}d ago`;
+  }
+
+  // ========== SEARCH ==========
+  async function doSearch() {
+    const query = document.getElementById('search-input').value.trim();
+    if (!query) return;
+
+    const results = document.getElementById('results');
+    const btn = document.getElementById('search-btn');
+
+    results.innerHTML = '<div class="loading"><div class="spinner"></div><p>Searching for connections...</p></div>';
+    btn.disabled = true;
+
+    try {
+      const data = await api('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+
+      renderResults(data);
+    } catch (e) {
+      results.innerHTML = `<div class="error-box">${esc(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderResults(data) {
+    const el = document.getElementById('results');
+    let html = '';
+
+    if (data.message && !data.target) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">?</div><p>${esc(data.message)}</p></div>`;
+      return;
+    }
+
+    // Target card
+    if (data.target) {
+      const t = data.target;
+      const org = t.org || {};
+      const initial = (t.name || t.domain || '?')[0].toUpperCase();
+
+      html += '<div class="target-card">';
+      html += '<div class="target-header">';
+      if (org.logoUrl) {
+        html += `<div class="target-logo"><img src="${esc(org.logoUrl)}" alt="" onerror="this.parentElement.textContent='${initial}'"></div>`;
+      } else {
+        html += `<div class="target-logo">${initial}</div>`;
+      }
+      html += '<div>';
+      html += `<div class="target-name">${esc(t.name || t.domain)}</div>`;
+      if (t.domain) html += `<div class="target-domain">${esc(t.domain)}</div>`;
+      html += '</div></div>';
+
+      // Meta info
+      const meta = [];
+      if (org.industry) meta.push(org.industry);
+      if (org.employeeCount) meta.push(`${org.employeeCount.toLocaleString()} employees`);
+      const loc = [org.city, org.state, org.country].filter(Boolean).join(', ');
+      if (loc) meta.push(loc);
+      if (meta.length) {
+        html += '<div class="target-meta">' + meta.map(m => `<span>${esc(m)}</span>`).join('') + '</div>';
+      }
+
+      // Target person (if searched by email/linkedin)
+      if (t.person) {
+        html += `<div class="target-person">Looked up: <strong>${esc(t.person.name)}</strong>`;
+        if (t.person.title) html += ` &mdash; ${esc(t.person.title)}`;
+        html += '</div>';
+      }
+
+      html += '</div>';
+    }
+
+    const totalConns = (data.connections || []).length + (data.reverseConnections || []).length;
+
+    if (totalConns === 0) {
+      html += '<div class="empty-state">';
+      html += '<div class="icon">--</div>';
+      html += '<p>No connections found</p>';
+      if (!data.hasEmploymentData) {
+        html += '<p class="note">Your team sync may not have returned employment history data. Apollo\'s People Search sometimes omits past employment. Try re-syncing or checking individual profiles.</p>';
+      } else {
+        html += '<p class="note">None of your team members have known prior employment at this company.</p>';
+      }
+      html += '</div>';
+      el.innerHTML = html;
+      return;
+    }
+
+    // Results header
+    html += `<div class="results-header"><span>${totalConns}</span> connection${totalConns !== 1 ? 's' : ''} found</div>`;
+
+    // Our team → target company
+    if (data.connections && data.connections.length) {
+      html += `<div class="section-label">Your team members who previously worked there</div>`;
+      for (const c of data.connections) {
+        html += renderConnectionCard(c, 'formerly_at_target');
+      }
+    }
+
+    // Reverse: target company → our team
+    if (data.reverseConnections && data.reverseConnections.length) {
+      html += `<div class="section-label">People there who previously worked at your company</div>`;
+      for (const c of data.reverseConnections) {
+        html += renderConnectionCard(c, 'formerly_at_ours');
+      }
+    }
+
+    el.innerHTML = html;
+  }
+
+  function renderConnectionCard(c, type) {
+    const p = c.person;
+    const initials = getInitials(p.name);
+    let html = '<div class="connection-card">';
+
+    // Avatar
+    if (p.photoUrl) {
+      html += `<div class="avatar"><img src="${esc(p.photoUrl)}" alt="" onerror="this.parentElement.textContent='${esc(initials)}'"></div>`;
+    } else {
+      html += `<div class="avatar">${esc(initials)}</div>`;
+    }
+
+    html += '<div class="conn-info">';
+
+    // Name
+    if (p.linkedinUrl) {
+      html += `<div class="conn-name"><a href="${esc(p.linkedinUrl)}" target="_blank">${esc(p.name)}</a></div>`;
+    } else {
+      html += `<div class="conn-name">${esc(p.name)}</div>`;
+    }
+
+    // Current title
+    if (p.title) html += `<div class="conn-title">${esc(p.title)}</div>`;
+    if (p.location) html += `<div class="conn-location">${esc(p.location)}</div>`;
+
+    // Match details
+    for (const m of (c.matches || [])) {
+      html += '<div class="conn-match">';
+      if (type === 'formerly_at_target') {
+        html += '<div class="label">Previously worked at target company</div>';
+      } else {
+        html += '<div class="label">Previously worked at your company</div>';
+      }
+      const parts = [];
+      if (m.role) parts.push(m.role);
+      if (m.company) parts.push(`at ${m.company}`);
+      if (parts.length) html += `<div class="detail">${esc(parts.join(' '))}</div>`;
+
+      const dates = formatDateRange(m.startDate, m.endDate);
+      if (dates) html += `<div class="dates">${esc(dates)}</div>`;
+      html += '</div>';
+    }
+
+    // Links
+    const links = [];
+    if (p.linkedinUrl) links.push(`<a href="${esc(p.linkedinUrl)}" target="_blank">LinkedIn</a>`);
+    if (p.email) links.push(`<a href="mailto:${esc(p.email)}">Email</a>`);
+    if (links.length) html += `<div class="conn-links">${links.join('')}</div>`;
+
+    html += '</div></div>';
+    return html;
+  }
+
+  function getInitials(name) {
+    if (!name) return '?';
+    return name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  }
+
+  function formatDateRange(start, end) {
+    if (!start && !end) return '';
+    const fmt = d => {
+      if (!d) return 'Present';
+      const parts = d.split('-');
+      if (parts.length >= 2) {
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const m = parseInt(parts[1], 10);
+        return `${months[m - 1] || ''} ${parts[0]}`.trim();
+      }
+      return d;
+    };
+    return `${fmt(start)} - ${fmt(end)}`;
+  }
+
+  // ========== INIT ==========
+  (async function init() {
+    const settings = await loadSettings();
+    await loadTeamStatus();
+  })();
 </script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 {
-  "name": "soccer-betting-value",
+  "name": "connection-finder",
   "version": "1.0.0",
-  "description": "Find value bets in tomorrow's professional soccer matches",
+  "description": "Find your team's first-degree connections to any company using Apollo.io",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
