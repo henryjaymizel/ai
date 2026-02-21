@@ -115,92 +115,68 @@ app.post('/api/lookup', async (req, res) => {
 
   try {
     // Step 1: Enrich the organization to get company info
-    const { status: orgStatus, data: orgData } = await apolloRequest(
-      'GET',
-      '/api/v1/organizations/enrich',
-      cfg.apiKey,
-      { domain }
-    );
-
     let org = null;
-    if (orgStatus === 200 && orgData.organization) {
-      org = orgData.organization;
+    try {
+      const { status: orgStatus, data: orgData } = await apolloRequest(
+        'GET',
+        '/api/v1/organizations/enrich',
+        cfg.apiKey,
+        { domain }
+      );
+      if (orgStatus === 200 && orgData.organization) {
+        org = orgData.organization;
+      }
+    } catch (e) {
+      console.error('Org enrich failed:', e.message);
     }
 
-    // Step 2: Search for people at this domain using people/search
+    // Step 2: Search for people at this domain
+    // Try multiple Apollo endpoints - different keys have access to different ones
     const people = [];
-    let page = 1;
     let totalEntries = 0;
-    const maxPages = 3; // Cap at 300 people
+    let searchError = null;
 
-    while (page <= maxPages) {
-      const { status, data } = await apolloRequest(
-        'POST',
-        '/api/v1/mixed_people/search',
-        cfg.apiKey,
-        {},
-        {
-          organization_domains: [domain],
-          page,
-          per_page: 100,
-        }
-      );
+    const endpoints = [
+      { path: '/api/v1/mixed_people/search', body: { organization_domains: [domain], page: 1, per_page: 100 } },
+      { path: '/api/v1/people/search', body: { q_organization_domains: domain, page: 1, per_page: 100 } },
+      { path: '/api/v1/mixed_people/api_search', body: { q_organization_domains: domain, page: 1, per_page: 100 } },
+    ];
 
-      if (status === 403 || status === 401) {
-        // Try the alternate endpoint
-        const alt = await apolloRequest(
-          'POST',
-          '/api/v1/people/search',
-          cfg.apiKey,
-          {},
-          {
-            q_organization_domains: domain,
-            page,
-            per_page: 100,
-          }
-        );
+    let workingEndpoint = null;
 
-        if (alt.status === 403 || alt.status === 401) {
-          // Both search endpoints blocked - return just org info
-          return res.json({
-            org: org ? {
-              name: org.name,
-              domain: org.primary_domain || domain,
-              industry: org.industry,
-              employeeCount: org.estimated_num_employees,
-              city: org.city,
-              state: org.state,
-              country: org.country,
-              logoUrl: org.logo_url,
-              websiteUrl: org.website_url,
-              linkedinUrl: org.linkedin_url,
-              description: org.short_description,
-            } : null,
-            people: [],
-            total: 0,
-            error: 'People search is not available with your Apollo API key. Upgrade your plan to search for employees.',
-          });
-        }
-
-        if (alt.status === 200 && alt.data.people) {
-          const pagination = alt.data.pagination || {};
+    for (const ep of endpoints) {
+      try {
+        const { status, data } = await apolloRequest('POST', ep.path, cfg.apiKey, {}, ep.body);
+        if (status === 200 && data.people) {
+          workingEndpoint = ep;
+          const pagination = data.pagination || {};
           totalEntries = pagination.total_entries || 0;
-          people.push(...alt.data.people);
-          if (page >= (pagination.total_pages || 1)) break;
-        } else {
+          people.push(...data.people);
+
+          // Fetch additional pages from the working endpoint
+          let page = 2;
+          const maxPages = 3;
+          while (page <= maxPages && page <= (pagination.total_pages || 1)) {
+            const nextBody = { ...ep.body, page };
+            const next = await apolloRequest('POST', ep.path, cfg.apiKey, {}, nextBody);
+            if (next.status === 200 && next.data.people && next.data.people.length) {
+              people.push(...next.data.people);
+            } else {
+              break;
+            }
+            page++;
+            await new Promise(r => setTimeout(r, 300));
+          }
           break;
         }
-      } else if (status === 200 && data.people) {
-        const pagination = data.pagination || {};
-        totalEntries = pagination.total_entries || 0;
-        people.push(...data.people);
-        if (page >= (pagination.total_pages || 1)) break;
-      } else {
-        break;
+        // If 403/401, try next endpoint
+      } catch (e) {
+        console.error(`Endpoint ${ep.path} failed:`, e.message);
       }
+    }
 
-      page++;
-      await new Promise(r => setTimeout(r, 300));
+    if (!workingEndpoint && people.length === 0) {
+      searchError = 'People search is not available with your Apollo API key. Only company info is shown.';
     }
 
     res.json({
@@ -230,6 +206,7 @@ app.post('/api/lookup', async (req, res) => {
         departments: p.departments,
       })),
       total: totalEntries,
+      error: searchError,
     });
   } catch (err) {
     console.error('Lookup error:', err.message);
@@ -239,6 +216,12 @@ app.post('/api/lookup', async (req, res) => {
 
 // Catch-all for unknown /api routes
 app.use('/api', (req, res) => res.status(404).json({ error: 'Unknown API endpoint' }));
+
+// Global error handler - always return JSON, never HTML
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  res.status(500).json({ error: err.message || 'Internal server error' });
+});
 
 app.listen(PORT, () => {
   const cfg = getConfig();
