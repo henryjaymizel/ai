@@ -29,10 +29,19 @@ function getConfig() {
 // --- Apollo API ---
 function apolloRequest(method, apiPath, apiKey, params = {}, body = null) {
   return new Promise((resolve, reject) => {
-    const qs = Object.entries(params)
-      .filter(([, v]) => v != null && v !== '')
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-      .join('&');
+    // Build query string, supporting array values (e.g. organization_domains[]=x)
+    const qsParts = [];
+    for (const [k, v] of Object.entries(params)) {
+      if (v == null || v === '') continue;
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          qsParts.push(`${encodeURIComponent(k)}[]=${encodeURIComponent(item)}`);
+        }
+      } else {
+        qsParts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+      }
+    }
+    const qs = qsParts.join('&');
     const fullPath = qs ? `${apiPath}?${qs}` : apiPath;
 
     const options = {
@@ -136,29 +145,29 @@ app.post('/api/lookup', async (req, res) => {
     let totalEntries = 0;
     let searchError = null;
 
+    // Apollo search filters go as query params (with array syntax), not JSON body
     const endpoints = [
-      { path: '/api/v1/mixed_people/search', body: { organization_domains: [domain], page: 1, per_page: 100 } },
-      { path: '/api/v1/people/search', body: { q_organization_domains: domain, page: 1, per_page: 100 } },
-      { path: '/api/v1/mixed_people/api_search', body: { q_organization_domains: domain, page: 1, per_page: 100 } },
+      { path: '/api/v1/mixed_people/search', params: { organization_domains: [domain], per_page: 100, page: 1 } },
+      { path: '/api/v1/mixed_people/search', params: { q_organization_domains: domain, per_page: 100, page: 1 } },
     ];
 
     let workingEndpoint = null;
 
     for (const ep of endpoints) {
       try {
-        const { status, data } = await apolloRequest('POST', ep.path, cfg.apiKey, {}, ep.body);
-        if (status === 200 && data.people) {
+        const { status, data } = await apolloRequest('POST', ep.path, cfg.apiKey, ep.params);
+        if (status === 200 && data.people && data.people.length > 0) {
           workingEndpoint = ep;
           const pagination = data.pagination || {};
           totalEntries = pagination.total_entries || 0;
           people.push(...data.people);
 
-          // Fetch additional pages from the working endpoint
+          // Fetch additional pages
           let page = 2;
-          const maxPages = 3;
+          const maxPages = 5;
           while (page <= maxPages && page <= (pagination.total_pages || 1)) {
-            const nextBody = { ...ep.body, page };
-            const next = await apolloRequest('POST', ep.path, cfg.apiKey, {}, nextBody);
+            const nextParams = { ...ep.params, page };
+            const next = await apolloRequest('POST', ep.path, cfg.apiKey, nextParams);
             if (next.status === 200 && next.data.people && next.data.people.length) {
               people.push(...next.data.people);
             } else {
@@ -169,7 +178,7 @@ app.post('/api/lookup', async (req, res) => {
           }
           break;
         }
-        // If 403/401, try next endpoint
+        // If 403/401 or no results, try next endpoint variant
       } catch (e) {
         console.error(`Endpoint ${ep.path} failed:`, e.message);
       }
