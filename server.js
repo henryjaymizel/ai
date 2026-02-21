@@ -140,51 +140,63 @@ app.post('/api/lookup', async (req, res) => {
     }
 
     // Step 2: Search for people at this domain
-    // Try multiple Apollo endpoints - different keys have access to different ones
+    // Apollo has multiple endpoints and param formats; try each until one filters correctly
     const people = [];
     let totalEntries = 0;
     let searchError = null;
 
-    // Apollo search filters go as query params (with array syntax), not JSON body
-    const endpoints = [
-      { path: '/api/v1/mixed_people/search', params: { organization_domains: [domain], per_page: 100, page: 1 } },
-      { path: '/api/v1/mixed_people/search', params: { q_organization_domains: domain, per_page: 100, page: 1 } },
+    const attempts = [
+      // Query param: q_organization_domains_list[] (confirmed working format from docs)
+      { path: '/api/v1/mixed_people/search', params: { q_organization_domains_list: [domain], per_page: 100, page: 1 }, body: null },
+      // JSON body with q_organization_domains
+      { path: '/api/v1/mixed_people/search', params: { per_page: 100, page: 1 }, body: { q_organization_domains: domain } },
+      // JSON body with organization_domains array
+      { path: '/api/v1/mixed_people/search', params: { per_page: 100, page: 1 }, body: { organization_domains: [domain] } },
     ];
 
-    let workingEndpoint = null;
+    let workingAttempt = null;
 
-    for (const ep of endpoints) {
+    for (const attempt of attempts) {
       try {
-        const { status, data } = await apolloRequest('POST', ep.path, cfg.apiKey, ep.params);
-        if (status === 200 && data.people && data.people.length > 0) {
-          workingEndpoint = ep;
-          const pagination = data.pagination || {};
-          totalEntries = pagination.total_entries || 0;
-          people.push(...data.people);
+        const { status, data } = await apolloRequest('POST', attempt.path, cfg.apiKey, attempt.params, attempt.body);
+        if (status !== 200 || !data.people) continue;
 
-          // Fetch additional pages
-          let page = 2;
-          const maxPages = 5;
-          while (page <= maxPages && page <= (pagination.total_pages || 1)) {
-            const nextParams = { ...ep.params, page };
-            const next = await apolloRequest('POST', ep.path, cfg.apiKey, nextParams);
-            if (next.status === 200 && next.data.people && next.data.people.length) {
-              people.push(...next.data.people);
-            } else {
-              break;
-            }
-            page++;
-            await new Promise(r => setTimeout(r, 300));
-          }
-          break;
+        const pagination = data.pagination || {};
+        const total = pagination.total_entries || data.people.length;
+
+        // Sanity check: if total > 10000, the filter probably didn't apply
+        // (billgo.com should have ~158, not millions)
+        if (total > 10000) {
+          console.log(`Skipping attempt ${attempt.path} - returned ${total} results (filter likely ignored)`);
+          continue;
         }
-        // If 403/401 or no results, try next endpoint variant
+
+        workingAttempt = attempt;
+        totalEntries = total;
+        people.push(...data.people);
+
+        // Fetch additional pages
+        let page = 2;
+        const maxPages = 5;
+        const totalPages = pagination.total_pages || 1;
+        while (page <= maxPages && page <= totalPages) {
+          const nextParams = { ...attempt.params, page };
+          const next = await apolloRequest('POST', attempt.path, cfg.apiKey, nextParams, attempt.body);
+          if (next.status === 200 && next.data.people && next.data.people.length) {
+            people.push(...next.data.people);
+          } else {
+            break;
+          }
+          page++;
+          await new Promise(r => setTimeout(r, 300));
+        }
+        break;
       } catch (e) {
-        console.error(`Endpoint ${ep.path} failed:`, e.message);
+        console.error(`Attempt failed (${attempt.path}):`, e.message);
       }
     }
 
-    if (!workingEndpoint && people.length === 0) {
+    if (!workingAttempt && people.length === 0) {
       searchError = 'People search is not available with your Apollo API key. Only company info is shown.';
     }
 
