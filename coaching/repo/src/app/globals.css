@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --band-developing: #ef4444;
+  --band-proficient: #eab308;
+  --band-elite: #22c55e;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+}

@@ -13,6 +13,7 @@ Define the organizational hierarchy for the sales team reporting to Max Angell. 
 |--------|------|----------------|
 | Glean | Employee directory, reporting lines, titles | Daily |
 | Notion | Team rosters, role definitions, territories | Daily |
+| Salesforce | Rep profiles, segment assignments, team assignments | At call scoring time |
 
 ## Hierarchy Model
 
@@ -40,8 +41,20 @@ VP Sales (Max Angell)
   - `ae` — Account Executive
   - `sdr` — Sales Development Rep
   - `se` — Sales Engineer
+  - `enablement` — Enablement / program owner (manages pillar weights, rubric)
+  - `revops` — RevOps / CRM admin (manages segment tags, MEDDPICC requirements)
   - `other` — Any other IC role within the sales org
 - Role SHALL be derived from title in Glean, overridable via Notion.
+- Enablement and RevOps roles have configuration permissions (see PRD-07) but do NOT appear in coaching hierarchies.
+
+### REQ-TEAM-002a: Segment Tagging
+- Every rep and manager SHALL be tagged with a market segment:
+  - `smb` — Small/Medium Business
+  - `mid_market` — Mid-Market
+  - `enterprise` — Enterprise
+- Segment tags SHALL be sourced from Salesforce (rep profile or team assignment) and synced at call scoring time.
+- Segment tags SHALL be overridable in the coaching admin UI for edge cases.
+- Segment determines pillar weights, priority plays, and eligibility rules (see PRD-07).
 
 ### REQ-TEAM-003: Reporting Lines
 - The system SHALL maintain `reports_to` relationships for every person.
@@ -81,12 +94,15 @@ TeamMember {
   id: string (UUID)
   name: string
   email: string
-  role: enum (vp | director | manager | ae | sdr | se | other)
+  role: enum (vp | director | manager | ae | sdr | se | enablement | revops | other)
+  segment: enum (smb | mid_market | enterprise) | null
+  segment_source: enum (sfdc | manual_override) | null
   title: string  // raw title from Glean
   reports_to: string | null  // id of manager
   team_label: string | null
   glean_id: string
   notion_id: string | null
+  sfdc_user_id: string | null
   last_synced_at: datetime
 }
 ```
@@ -97,3 +113,7 @@ TeamMember {
 - [ ] Reporting line integrity: no cycles, single root
 - [ ] Sync from Glean/Notion succeeds and updates `last_synced_at`
 - [ ] Team labels are assignable and queryable
+- [ ] Every rep is tagged with a segment (smb, mid_market, enterprise)
+- [ ] Segment tags are sourced from Salesforce and overridable in admin UI
+- [ ] Enablement and RevOps roles are supported with appropriate permissions
+- [ ] Salesforce user IDs are stored and synced for SFDC cross-referencing (PRD-08)

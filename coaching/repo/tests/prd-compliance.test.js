@@ -63,10 +63,15 @@ describe('PRD-01: Team Roles and Grouping', () => {
   });
 
   describe('REQ-TEAM-002: Role Classification', () => {
-    it('validates role against allowed values', () => {
+    it('validates role against allowed values including enablement and revops', () => {
       const { createTeamMember, VALID_ROLES } = requireSrc('team', 'models');
-      assert.deepEqual(VALID_ROLES, ['vp', 'director', 'manager', 'ae', 'sdr', 'se', 'other']);
+      assert.deepEqual(VALID_ROLES, ['vp', 'director', 'manager', 'ae', 'sdr', 'se', 'enablement', 'revops', 'other']);
       assert.throws(() => createTeamMember({ id: '1', name: 'X', email: 'x@x.com', role: 'ceo' }), /Invalid role/);
+      // Enablement and RevOps should be valid
+      const em = createTeamMember({ id: '2', name: 'E', email: 'e@x.com', role: 'enablement' });
+      assert.equal(em.role, 'enablement');
+      const rv = createTeamMember({ id: '3', name: 'R', email: 'r@x.com', role: 'revops' });
+      assert.equal(rv.role, 'revops');
     });
 
     it('mapGleanRole maps titles correctly', () => {
@@ -147,6 +152,31 @@ describe('PRD-01: Team Roles and Grouping', () => {
       const result = filterMembers(members, { role: 'ae', manager_id: '3' });
       assert.equal(result.length, 1);
       assert.equal(result[0].name, 'Rep A');
+    });
+  });
+
+  describe('REQ-TEAM-002a: Segment Tagging', () => {
+    it('TeamMember model supports segment and segment_source', () => {
+      const { createTeamMember } = requireSrc('team', 'models');
+      const m = createTeamMember({ id: '1', name: 'X', email: 'x@x.com', role: 'ae', segment: 'smb', segment_source: 'sfdc' });
+      assert.equal(m.segment, 'smb');
+      assert.equal(m.segment_source, 'sfdc');
+    });
+
+    it('rejects invalid segment', () => {
+      const { createTeamMember } = requireSrc('team', 'models');
+      assert.throws(() => createTeamMember({ id: '1', name: 'X', email: 'x@x.com', role: 'ae', segment: 'mega' }), /Invalid segment/);
+    });
+
+    it('supports all valid segments', () => {
+      const { VALID_SEGMENTS } = requireSrc('team', 'models');
+      assert.deepEqual(VALID_SEGMENTS, ['smb', 'mid_market', 'enterprise']);
+    });
+
+    it('TeamMember supports sfdc_user_id', () => {
+      const { createTeamMember } = requireSrc('team', 'models');
+      const m = createTeamMember({ id: '1', name: 'X', email: 'x@x.com', role: 'ae', sfdc_user_id: 'SF001' });
+      assert.equal(m.sfdc_user_id, 'SF001');
     });
   });
 
@@ -473,12 +503,13 @@ describe('PRD-03: UI Dashboard', () => {
 
   describe('REQ-UI-010: Responsive Design', () => {
     // NOTE: This is a frontend implementation concern — cannot be fully tested at module level
-    it('FLAGGED: No React/Next.js pages implemented yet', () => {
-      const pagesDir = path.join(SRC, '..', 'app');
+    it('Frontend pages directory exists with Next.js App Router', () => {
+      const pagesDir = path.join(SRC, 'app');
       const hasFrontend = fs.existsSync(pagesDir);
-      if (!hasFrontend) {
-        assert.fail('PRD-03 REQ-UI-010: No frontend pages directory found. React/Next.js UI not yet implemented.');
-      }
+      assert.ok(hasFrontend, 'PRD-03 REQ-UI-010: No frontend pages directory found at src/app.');
+      // Verify key pages exist
+      const rootPage = path.join(pagesDir, 'page.js');
+      assert.ok(fs.existsSync(rootPage), 'Root page.js should exist');
     });
   });
 
@@ -665,6 +696,448 @@ describe('PRD-04: Weekly Trends & Recommendations', () => {
       const email = buildManagerEmail(rec, 'Bob Manager', 'https://coaching.example.com');
       assert.ok(email.subject.includes('Team Coaching Summary'));
       assert.ok(email.body.includes('7.2/10'));
+    });
+  });
+});
+
+// ============================================================
+// PRD 05: Coaching Framework & Three-Pillar Methodology
+// ============================================================
+
+describe('PRD-05: Coaching Framework & Three-Pillar Methodology', () => {
+
+  describe('REQ-FW-001: Three Pillars Defined', () => {
+    it('three pillars are defined with sub-criteria', () => {
+      const { PILLARS } = requireSrc('calls', 'three-pillars');
+      assert.ok(PILLARS.gtm_workflow_mastery, 'P1 must exist');
+      assert.ok(PILLARS.system_mapping, 'P2 must exist');
+      assert.ok(PILLARS.solution_mapping, 'P3 must exist');
+      assert.ok(PILLARS.gtm_workflow_mastery.sub_criteria.length > 0, 'P1 needs sub-criteria');
+      assert.ok(PILLARS.system_mapping.sub_criteria.length > 0, 'P2 needs sub-criteria');
+      assert.ok(PILLARS.solution_mapping.sub_criteria.length > 0, 'P3 needs sub-criteria');
+    });
+  });
+
+  describe('REQ-FW-002: Scoring Bands', () => {
+    it('getScoreBand returns correct bands', () => {
+      const { getScoreBand } = requireSrc('calls', 'three-pillars');
+      assert.equal(getScoreBand(0), 'developing');
+      assert.equal(getScoreBand(3), 'developing');
+      assert.equal(getScoreBand(4), 'proficient');
+      assert.equal(getScoreBand(6), 'proficient');
+      assert.equal(getScoreBand(7), 'elite');
+      assert.equal(getScoreBand(10), 'elite');
+    });
+
+    it('getBandLabel returns human-readable labels', () => {
+      const { getBandLabel } = requireSrc('calls', 'three-pillars');
+      assert.equal(getBandLabel(2), 'Developing');
+      assert.equal(getBandLabel(5), 'Proficient');
+      assert.equal(getBandLabel(8), 'Elite');
+    });
+  });
+
+  describe('REQ-FW-003: Composite Score', () => {
+    it('computeCompositeScore applies pillar weights correctly', () => {
+      const { computeCompositeScore } = requireSrc('calls', 'three-pillars');
+      const scores = {
+        gtm_workflow_mastery: { score: 8 },
+        system_mapping: { score: 6 },
+        solution_mapping: { score: 4 },
+      };
+      // SMB weights: 45/30/25
+      const weights = { gtm_workflow_mastery: 0.45, system_mapping: 0.30, solution_mapping: 0.25 };
+      const composite = computeCompositeScore(scores, weights);
+      const expected = Math.round(((8 * 0.45) + (6 * 0.30) + (4 * 0.25)) * 10) / 10;
+      assert.equal(composite, expected);
+    });
+  });
+
+  describe('REQ-FW-004: Verdict Label', () => {
+    it('buildVerdict produces band and pillar breakdown', () => {
+      const { buildVerdict } = requireSrc('calls', 'three-pillars');
+      const verdict = buildVerdict(5.5, {
+        gtm_workflow_mastery: { score: 7 },
+        system_mapping: { score: 5 },
+        solution_mapping: { score: 4 },
+      });
+      assert.ok(verdict.includes('Proficient'), 'Should include composite band');
+      assert.ok(verdict.includes('P1: Elite'), 'Should include P1 band');
+      assert.ok(verdict.includes('P2: Proficient'), 'Should include P2 band');
+    });
+  });
+
+  describe('REQ-FW-005: Transcript-Grounded Evidence', () => {
+    it('validatePillarScores requires evidence for each pillar', () => {
+      const { validatePillarScores } = requireSrc('calls', 'three-pillars');
+      const noEvidence = {
+        gtm_workflow_mastery: { score: 7, evidence: [] },
+        system_mapping: { score: 5, evidence: [{ quote: 'x' }] },
+        solution_mapping: { score: 4, evidence: [{ quote: 'y' }] },
+      };
+      const result = validatePillarScores(noEvidence);
+      assert.equal(result.valid, false, 'Should reject pillar without evidence');
+      assert.ok(result.errors.some(e => e.includes('gtm_workflow_mastery')));
+    });
+
+    it('validatePillarScores accepts valid scores with evidence', () => {
+      const { validatePillarScores } = requireSrc('calls', 'three-pillars');
+      const valid = {
+        gtm_workflow_mastery: { score: 7, evidence: [{ quote: 'mentioned dialer' }] },
+        system_mapping: { score: 5, evidence: [{ quote: 'asked about tech stack' }] },
+        solution_mapping: { score: 4, evidence: [{ quote: 'tied to ROI' }] },
+      };
+      const result = validatePillarScores(valid);
+      assert.equal(result.valid, true);
+    });
+  });
+
+  describe('REQ-FW-006: Prompt Section Builder', () => {
+    it('buildThreePillarPromptSection generates pillar instructions', () => {
+      const { buildThreePillarPromptSection } = requireSrc('calls', 'three-pillars');
+      const section = buildThreePillarPromptSection('smb', { gtm_workflow_mastery: 0.45, system_mapping: 0.30, solution_mapping: 0.25 });
+      assert.ok(section.includes('GTM Workflow Mastery'));
+      assert.ok(section.includes('System Mapping'));
+      assert.ok(section.includes('Solution Mapping'));
+      assert.ok(section.includes('45%'));
+      assert.ok(section.includes('Segment: smb'));
+    });
+  });
+});
+
+// ============================================================
+// PRD 06: Delivery Channels & Touchpoints
+// ============================================================
+
+describe('PRD-06: Delivery Channels & Touchpoints', () => {
+
+  describe('REQ-DEL-001: Post-Call Ping', () => {
+    it('buildPostCallPing creates correct structure', () => {
+      const { buildPostCallPing } = requireSrc('recommendations', 'touchpoints');
+      const eval_ = {
+        composite_score: 7.5,
+        scoring_band: 'elite',
+        strengths: ['Great discovery'],
+        improvements: ['Follow up faster'],
+        next_call_playbook: ['Open with ROI', 'Map stakeholders', 'Tie to pain'],
+      };
+      const ping = buildPostCallPing(eval_, 'Alice');
+      assert.equal(ping.type, 'post_call_ping');
+      assert.ok(ping.body.includes('7.5/10'));
+      assert.ok(ping.body.includes('Great discovery'));
+      assert.ok(ping.body.includes('Open with ROI'));
+    });
+  });
+
+  describe('REQ-DEL-002: End-of-Day Recap', () => {
+    it('buildEODRecap summarizes daily evaluations', () => {
+      const { buildEODRecap } = requireSrc('recommendations', 'touchpoints');
+      const evals = [
+        { composite_score: 7, priority_play_results: [{ detected: true }, { detected: false }] },
+        { composite_score: 8, priority_play_results: [{ detected: true }, { detected: true }] },
+      ];
+      const recap = buildEODRecap(evals, 'Bob', '2026-03-08');
+      assert.equal(recap.type, 'eod_recap');
+      assert.equal(recap.calls_scored, 2);
+      assert.equal(recap.avg_score, 7.5);
+      assert.equal(recap.play_compliance_rate, 75); // 3 of 4 detected
+    });
+  });
+
+  describe('REQ-DEL-003: End-of-Week Digest', () => {
+    it('buildEOWDigest computes weekly score with delta', () => {
+      const { buildEOWDigest } = requireSrc('recommendations', 'touchpoints');
+      const evals = [{ composite_score: 7 }, { composite_score: 8 }];
+      const digest = buildEOWDigest(evals, 'Carol', '2026-03-02', '2026-03-08', 6.5);
+      assert.equal(digest.type, 'eow_digest');
+      assert.equal(digest.composite_score, 7.5);
+      assert.equal(digest.delta, 1);
+    });
+  });
+
+  describe('REQ-DEL-004: Manager Real-Time Alert', () => {
+    it('buildManagerRealtimeAlert identifies top/bottom performance', () => {
+      const { buildManagerRealtimeAlert } = requireSrc('recommendations', 'touchpoints');
+      const topEval = { composite_score: 9, improvements: [] };
+      const alert = buildManagerRealtimeAlert(topEval, 'Alice', 'Acme Deal');
+      assert.equal(alert.type, 'manager_realtime_alert');
+      assert.equal(alert.is_top_performer, true);
+      assert.ok(alert.subject.includes('Exceptional'));
+    });
+
+    it('shouldTriggerRealtimeAlert checks percentile thresholds', () => {
+      const { shouldTriggerRealtimeAlert } = requireSrc('recommendations', 'touchpoints');
+      assert.equal(shouldTriggerRealtimeAlert(9), true);
+      assert.equal(shouldTriggerRealtimeAlert(2), true);
+      assert.equal(shouldTriggerRealtimeAlert(5), false);
+    });
+  });
+
+  describe('REQ-DEL-005: Manager Daily Digest', () => {
+    it('buildManagerDailyDigest aggregates per-rep data', () => {
+      const { buildManagerDailyDigest } = requireSrc('recommendations', 'touchpoints');
+      const repEvals = {
+        rep1: [{ composite_score: 7 }, { composite_score: 8 }],
+        rep2: [{ composite_score: 5 }],
+      };
+      const digest = buildManagerDailyDigest(repEvals, 'Manager Jane', '2026-03-08');
+      assert.equal(digest.type, 'manager_daily_digest');
+      assert.equal(digest.rep_summaries.rep1.count, 2);
+      assert.equal(digest.rep_summaries.rep1.avg_score, 7.5);
+    });
+  });
+
+  describe('REQ-DEL-006: Coaching Uptake Tracking', () => {
+    it('checkCoachingUptake detects improvement', () => {
+      const { checkCoachingUptake } = requireSrc('recommendations', 'touchpoints');
+      const current = { gtm_workflow_mastery: { score: 7 } };
+      const prior = [{ flagged_pillar: 'gtm_workflow_mastery', flagged_score: 5, weeks_flagged: 1 }];
+      const results = checkCoachingUptake(current, prior);
+      assert.equal(results.length, 1);
+      assert.equal(results[0].uptake_confirmed, true);
+    });
+
+    it('checkCoachingUptake detects stagnation', () => {
+      const { checkCoachingUptake } = requireSrc('recommendations', 'touchpoints');
+      const current = { system_mapping: { score: 4 } };
+      const prior = [{ flagged_pillar: 'system_mapping', flagged_score: 4, weeks_flagged: 2 }];
+      const results = checkCoachingUptake(current, prior);
+      assert.equal(results[0].uptake_confirmed, false);
+    });
+  });
+
+  describe('REQ-DEL-007: Escalation', () => {
+    it('checkEscalation escalates after 2 weeks to rep, 3 weeks to manager', () => {
+      const { checkEscalation } = requireSrc('recommendations', 'touchpoints');
+      const uptake = [
+        { pillar: 'system_mapping', uptake_confirmed: false, weeks_flagged: 2 },
+        { pillar: 'gtm_workflow_mastery', uptake_confirmed: false, weeks_flagged: 3 },
+      ];
+      const escalations = checkEscalation(uptake);
+      assert.equal(escalations.length, 2);
+      assert.equal(escalations[0].escalate_to, 'rep');
+      assert.equal(escalations[1].escalate_to, 'manager');
+    });
+  });
+
+  describe('REQ-DEL-008: Touchpoint Types', () => {
+    it('all six touchpoint types are defined', () => {
+      const { TOUCHPOINT_TYPES } = requireSrc('recommendations', 'touchpoints');
+      assert.ok(TOUCHPOINT_TYPES.post_call_ping);
+      assert.ok(TOUCHPOINT_TYPES.eod_recap);
+      assert.ok(TOUCHPOINT_TYPES.eow_digest);
+      assert.ok(TOUCHPOINT_TYPES.manager_realtime_alert);
+      assert.ok(TOUCHPOINT_TYPES.manager_daily_digest);
+      assert.ok(TOUCHPOINT_TYPES.manager_weekly_rollup);
+    });
+  });
+});
+
+// ============================================================
+// PRD 07: Role-Based Configuration & Segment Strategy
+// ============================================================
+
+describe('PRD-07: Role-Based Configuration & Segment Strategy', () => {
+
+  describe('REQ-CFG-001: Segment Tagging', () => {
+    it('VALID_SEGMENTS includes smb, mid_market, enterprise', () => {
+      const { VALID_SEGMENTS } = requireSrc('config', 'segment-config');
+      assert.deepEqual(VALID_SEGMENTS, ['smb', 'mid_market', 'enterprise']);
+    });
+  });
+
+  describe('REQ-CFG-002: Priority Plays Configuration', () => {
+    it('SMB priority plays include Dialer and Inbound', () => {
+      const { DEFAULT_SMB_PRIORITY_PLAYS } = requireSrc('config', 'segment-config');
+      const names = DEFAULT_SMB_PRIORITY_PLAYS.map(p => p.name);
+      assert.ok(names.includes('Pitch Dialer'));
+      assert.ok(names.includes('Pitch Inbound'));
+    });
+
+    it('checkPriorityPlays detects keyword matches', () => {
+      const { checkPriorityPlays, DEFAULT_SMB_PRIORITY_PLAYS } = requireSrc('config', 'segment-config');
+      const transcript = [{ text: 'Have you tried the Apollo Dialer? It helps with cold calling.' }];
+      const results = checkPriorityPlays(transcript, DEFAULT_SMB_PRIORITY_PLAYS, 'smb');
+      const dialerResult = results.find(r => r.play_name === 'Pitch Dialer');
+      assert.ok(dialerResult.detected, 'Should detect Dialer mention');
+    });
+
+    it('checkPriorityPlays flags missing plays', () => {
+      const { checkPriorityPlays, DEFAULT_SMB_PRIORITY_PLAYS } = requireSrc('config', 'segment-config');
+      const transcript = [{ text: 'Let me tell you about our product.' }];
+      const results = checkPriorityPlays(transcript, DEFAULT_SMB_PRIORITY_PLAYS, 'smb');
+      const dialerResult = results.find(r => r.play_name === 'Pitch Dialer');
+      assert.equal(dialerResult.detected, false);
+      assert.ok(dialerResult.flag_message, 'Should have flag message for missed play');
+    });
+  });
+
+  describe('REQ-CFG-003: Pillar Weight Configuration', () => {
+    it('default pillar weights match PRD spec', () => {
+      const { DEFAULT_PILLAR_WEIGHTS } = requireSrc('config', 'segment-config');
+      assert.deepEqual(DEFAULT_PILLAR_WEIGHTS.smb, { gtm_workflow_mastery: 0.45, system_mapping: 0.30, solution_mapping: 0.25 });
+      assert.deepEqual(DEFAULT_PILLAR_WEIGHTS.mid_market, { gtm_workflow_mastery: 0.35, system_mapping: 0.40, solution_mapping: 0.25 });
+      assert.deepEqual(DEFAULT_PILLAR_WEIGHTS.enterprise, { gtm_workflow_mastery: 0.30, system_mapping: 0.35, solution_mapping: 0.35 });
+    });
+
+    it('createSegmentConfig enforces weights sum to 1', () => {
+      const { createSegmentConfig } = requireSrc('config', 'segment-config');
+      assert.throws(() => createSegmentConfig({
+        segment: 'smb',
+        pillar_weights: { gtm_workflow_mastery: 0.5, system_mapping: 0.5, solution_mapping: 0.5 },
+      }), /sum to 1/);
+    });
+  });
+
+  describe('REQ-CFG-004: MEDDPICC Required Fields by Stage', () => {
+    it('default stage-gate requirements match PRD', () => {
+      const { DEFAULT_MEDDPICC_BY_STAGE } = requireSrc('config', 'segment-config');
+      assert.deepEqual(DEFAULT_MEDDPICC_BY_STAGE['Stage 1'], ['M', 'I']);
+      assert.deepEqual(DEFAULT_MEDDPICC_BY_STAGE['Stage 2'], ['M', 'E', 'D', 'I', 'C']);
+    });
+
+    it('getMeddpiccRequirements returns requirements for stage', () => {
+      const { getMeddpiccRequirements } = requireSrc('config', 'segment-config');
+      const reqs = getMeddpiccRequirements('Stage 1');
+      assert.deepEqual(reqs, ['M', 'I']);
+    });
+  });
+
+  describe('REQ-CFG-010: Eligibility Filtering', () => {
+    it('checkEligibility rejects short calls', () => {
+      const { checkEligibility, DEFAULT_ELIGIBILITY_RULES } = requireSrc('config', 'segment-config');
+      const call = { duration_seconds: 120, call_type: 'discovery' };
+      const result = checkEligibility(call, DEFAULT_ELIGIBILITY_RULES);
+      assert.equal(result.eligible, false);
+      assert.ok(result.reason.includes('Duration'));
+    });
+
+    it('checkEligibility accepts eligible calls', () => {
+      const { checkEligibility, DEFAULT_ELIGIBILITY_RULES } = requireSrc('config', 'segment-config');
+      const call = { duration_seconds: 600, call_type: 'discovery' };
+      const result = checkEligibility(call, DEFAULT_ELIGIBILITY_RULES);
+      assert.equal(result.eligible, true);
+    });
+  });
+});
+
+// ============================================================
+// PRD 08: Sales Process Adherence & MEDDPICC
+// ============================================================
+
+describe('PRD-08: Sales Process Adherence & MEDDPICC', () => {
+
+  describe('REQ-MED-001: MEDDPICC Field Tracking', () => {
+    it('all 7 MEDDPICC fields are defined', () => {
+      const { MEDDPICC_FIELDS } = requireSrc('calls', 'meddpicc');
+      assert.equal(MEDDPICC_FIELDS.length, 7);
+    });
+  });
+
+  describe('REQ-MED-002: Stage-Gate Validation', () => {
+    it('checkStageGate detects missing required fields', () => {
+      const { checkStageGate } = requireSrc('calls', 'meddpicc');
+      const deal = { deal_stage: 'Stage 2' };
+      const status = {
+        metrics: { sfdc_populated: true },
+        economic_buyer: { sfdc_populated: false },
+        decision_criteria: { sfdc_populated: true },
+        identify_pain: { sfdc_populated: true },
+        champion: { sfdc_populated: false },
+      };
+      const requirements = { 'Stage 2': ['M', 'E', 'D', 'I', 'C'] };
+      const result = checkStageGate(deal, status, requirements);
+      assert.equal(result.pass, false);
+      assert.ok(result.missing.includes('E'));
+      assert.ok(result.missing.includes('C'));
+      assert.equal(result.severity, 'alert'); // 2+ missing
+    });
+
+    it('checkStageGate passes when all fields present', () => {
+      const { checkStageGate } = requireSrc('calls', 'meddpicc');
+      const deal = { deal_stage: 'Stage 1' };
+      const status = {
+        metrics: { sfdc_populated: true },
+        identify_pain: { sfdc_populated: true },
+      };
+      const requirements = { 'Stage 1': ['M', 'I'] };
+      const result = checkStageGate(deal, status, requirements);
+      assert.equal(result.pass, true);
+    });
+  });
+
+  describe('REQ-MED-003: SFDC Hygiene Scoring', () => {
+    it('scoreSFDCHygiene returns composite score 0-10', () => {
+      const { scoreSFDCHygiene } = requireSrc('calls', 'meddpicc');
+      const deal = { next_step: 'Demo', next_step_date: '2026-03-15' };
+      const status = {
+        metrics: { sfdc_populated: true, sfdc_last_updated: new Date().toISOString(), gap_type: null },
+        identify_pain: { sfdc_populated: true, sfdc_last_updated: new Date().toISOString(), gap_type: null },
+      };
+      const score = scoreSFDCHygiene(deal, status);
+      assert.ok(score.composite >= 0 && score.composite <= 10);
+      assert.ok(score.field_completeness >= 0 && score.field_completeness <= 10);
+      assert.ok(score.data_freshness >= 0 && score.data_freshness <= 10);
+      assert.ok(score.accuracy >= 0 && score.accuracy <= 10);
+      assert.ok(score.next_steps >= 0 && score.next_steps <= 10);
+    });
+  });
+
+  describe('REQ-MED-004: Transcript-to-SFDC Cross-Reference', () => {
+    it('crossReferenceTranscriptToSFDC detects discussed-but-not-documented', () => {
+      const { crossReferenceTranscriptToSFDC } = requireSrc('calls', 'meddpicc');
+      const transcript = [{ text: 'The ROI would be significant for your revenue impact.' }];
+      const status = {
+        metrics: { sfdc_populated: false },
+        economic_buyer: { sfdc_populated: true },
+        champion: { sfdc_populated: true },
+        identify_pain: { sfdc_populated: true },
+        decision_criteria: { sfdc_populated: true },
+      };
+      const flags = crossReferenceTranscriptToSFDC(transcript, status);
+      assert.ok(flags.some(f => f.field === 'metrics' && f.type === 'missing_field'));
+    });
+  });
+
+  describe('REQ-MED-005: Pipeline Coaching', () => {
+    it('assessPipelineHealth detects stuck deals', () => {
+      const { assessPipelineHealth } = requireSrc('calls', 'meddpicc');
+      const deal = {
+        id: 'd1',
+        deal_stage: 'Stage 2',
+        stage_entered_at: new Date(Date.now() - 60 * 86400000).toISOString(), // 60 days ago
+        segment: 'mid_market',
+      };
+      const calls = [{ participants: [{ name: 'Contact A', is_internal: false }] }];
+      const result = assessPipelineHealth(deal, calls, 20); // 20-day avg cycle
+      assert.equal(result.stuck, true);
+      assert.equal(result.single_threaded, true);
+      assert.ok(result.flags.length > 0);
+    });
+  });
+
+  describe('REQ-MED-006: Champion Development Tracking', () => {
+    it('trackChampionStatus detects champion identification', () => {
+      const { trackChampionStatus } = requireSrc('calls', 'meddpicc');
+      const calls = [
+        { id: 'c1', date: '2026-03-01', transcript: [{ text: 'Sarah has been our champion internally, she is really advocating for this.' }] },
+      ];
+      const result = trackChampionStatus(calls);
+      assert.equal(result.status, 'identified');
+    });
+
+    it('trackChampionStatus returns not_identified when no champion mentioned', () => {
+      const { trackChampionStatus } = requireSrc('calls', 'meddpicc');
+      const calls = [
+        { id: 'c1', date: '2026-03-01', transcript: [{ text: 'We discussed pricing and timeline.' }] },
+      ];
+      const result = trackChampionStatus(calls);
+      assert.equal(result.status, 'not_identified');
+    });
+
+    it('valid champion statuses are defined', () => {
+      const { CHAMPION_STATUSES } = requireSrc('calls', 'meddpicc');
+      assert.deepEqual(CHAMPION_STATUSES, ['not_identified', 'identified', 'tested', 'active']);
     });
   });
 });

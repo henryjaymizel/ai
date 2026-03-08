@@ -2,11 +2,15 @@
  * Team data models and validation — PRD 01
  */
 
-const VALID_ROLES = ['vp', 'director', 'manager', 'ae', 'sdr', 'se', 'other'];
+const VALID_ROLES = ['vp', 'director', 'manager', 'ae', 'sdr', 'se', 'enablement', 'revops', 'other'];
+const VALID_SEGMENTS = ['smb', 'mid_market', 'enterprise'];
 
-function createTeamMember({ id, name, email, role, title, reports_to, team_label, glean_id, notion_id }) {
+function createTeamMember({ id, name, email, role, title, reports_to, team_label, glean_id, notion_id, segment, segment_source, sfdc_user_id }) {
   if (!VALID_ROLES.includes(role)) {
     throw new Error(`Invalid role: ${role}. Must be one of: ${VALID_ROLES.join(', ')}`);
+  }
+  if (segment && !VALID_SEGMENTS.includes(segment)) {
+    throw new Error(`Invalid segment: ${segment}. Must be one of: ${VALID_SEGMENTS.join(', ')}`);
   }
   if (!id || !name || !email) {
     throw new Error('TeamMember requires id, name, and email');
@@ -16,11 +20,14 @@ function createTeamMember({ id, name, email, role, title, reports_to, team_label
     name,
     email,
     role,
+    segment: segment || null,
+    segment_source: segment_source || null,
     title: title || '',
     reports_to: reports_to || null,
     team_label: team_label || null,
     glean_id: glean_id || null,
     notion_id: notion_id || null,
+    sfdc_user_id: sfdc_user_id || null,
     last_synced_at: new Date().toISOString(),
   };
 }
@@ -104,4 +111,4 @@ function filterMembers(members, filters = {}) {
   return result;
 }
 
-module.exports = { VALID_ROLES, createTeamMember, validateOrgTree, getSubtree, filterMembers };
+module.exports = { VALID_ROLES, VALID_SEGMENTS, createTeamMember, validateOrgTree, getSubtree, filterMembers };

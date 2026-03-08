@@ -12,10 +12,12 @@ A web-based dashboard that surfaces coaching insights at every level of the org 
 ## User Personas
 | Persona | Sees | Actions |
 |---------|------|---------|
-| VP (Max Angell) | Entire org, director-level aggregates | View trends, compare teams |
-| Director | Their reports (managers) and transitive reps | View trends, compare managers |
-| Manager | Their direct report reps | View trends, drill into deals/calls, edit prompt |
-| Rep | Only their own calls and scores | View feedback, drill into deals/calls |
+| VP (Max Angell) | Entire org, director-level aggregates, segment strategy dashboard | View trends, compare teams, segment analysis |
+| Director | Their reports (managers) and transitive reps, cross-team heatmap | View trends, compare managers |
+| Manager | Their direct report reps | View trends, drill into deals/calls, edit prompt, add coaching notes |
+| Rep | Only their own calls and scores, coaching export | View feedback, drill into deals/calls, listen to audio coaching |
+| Enablement | Rubric analytics, pillar weight config | Configure coaching rubric, analyze rubric effectiveness |
+| RevOps | MEDDPICC config, segment tags, eligibility rules | Configure process requirements, manage segments |
 | Admin | Everything + system config | Edit prompt, trigger syncs, manage users |
 
 ## Requirements
@@ -32,25 +34,40 @@ A web-based dashboard that surfaces coaching insights at every level of the org 
 ### REQ-UI-002: Org Overview (VP Level)
 - Shows aggregate scores across the entire sales org.
 - Metrics displayed:
-  - Average overall score (and trend sparkline)
-  - Score distribution (histogram)
-  - Top 5 and bottom 5 reps by overall score
-  - Criterion-level averages (radar chart or bar chart)
+  - Average composite score (and trend sparkline)
+  - Score distribution histogram
+  - Top 5 and bottom 5 reps by composite score
+  - **Pillar heatmap**: 3-column heatmap (P1/P2/P3) × reps, color-coded by band (red=Developing, yellow=Proficient, green=Elite)
   - Number of deals evaluated, calls reviewed
+  - **Segment strategy dashboard**: Performance breakdown by segment (SMB/MM/Enterprise) with pillar averages
 - Filterable by time period (week, month, quarter, custom range).
+- Filterable by segment (SMB, Mid-Market, Enterprise).
 - Groupable by director.
 
 ### REQ-UI-003: Director / Manager View
 - Same structure as Org Overview but scoped to the subtree of the selected director or manager.
 - Shows comparison cards for each direct report.
-- Each card shows: name, role, average score, trend (up/down/flat), number of deals.
+- Each card shows: name, role, average composite score, trend (up/down/flat), number of deals, scoring band.
+- **Director cross-team heatmap**: Pillar scores across all managers' teams for cross-team comparison.
+- **Manager coaching notes**: Managers can add free-text coaching notes per rep, visible in the rep's view.
+- **Team leaderboard**: Ranked list of reps by composite score with sparklines.
+- **Call volume vs. score scatter plot**: Bubble chart showing reps by call volume (x) vs. composite score (y), bubble size = deal count.
 
 ### REQ-UI-004: Rep View
 - Shows the selected rep's evaluation history.
-- **Score trend chart**: line chart of overall score over time (weekly or monthly buckets).
-- **Criterion breakdown**: bar chart showing average for each criterion.
-- **Recent deals**: list of recent deal evaluations, sorted by date, showing overall score and status.
+- **Score trend chart**: line chart of composite score over time (weekly or monthly buckets) with pillar overlay lines.
+- **Pillar breakdown**: bar chart showing average for each pillar (P1, P2, P3) with scoring band colors.
+- **Recent deals**: list of recent deal evaluations, sorted by date, showing composite score, band, and status.
 - **Strengths & Improvement areas**: aggregated across recent evaluations.
+- **Coaching export view**: Structured 5-section coaching document (see PRD-05 REQ-FW-008):
+  1. Header (rep name, segment, period, manager)
+  2. Score summary with verdict and band
+  3. Progress trend (current vs. prior periods)
+  4. Per-pillar breakdown with evidence quotes
+  5. Next Call Playbook (three focus areas)
+- **Audio player**: TTS-narrated coaching summary with section navigation and speed control (0.8x–1.5x).
+- **Manager coaching notes**: Read-only view of notes from their manager.
+- Filterable by topic (Gong auto-tags) and tenure band.
 
 ### REQ-UI-005: Deal View
 - Shows the full evaluation for a single deal group.
@@ -82,9 +99,10 @@ A web-based dashboard that surfaces coaching insights at every level of the org 
 
 ### REQ-UI-008: Trend Charts
 - Trend charts SHALL show:
-  - Line chart of overall score over time
-  - Ability to overlay criterion-specific scores
-  - Comparison lines (e.g., team average vs. individual)
+  - Line chart of composite score over time
+  - Ability to overlay pillar-specific scores (P1, P2, P3)
+  - Comparison lines (e.g., team average vs. individual, segment average)
+  - Score distribution histogram showing band breakdown over time
 - Trend direction indicator (arrow up/down/flat) based on last period vs. prior period.
 
 ### REQ-UI-009: Prompt Editor
@@ -117,14 +135,19 @@ A web-based dashboard that surfaces coaching insights at every level of the org 
 
 ```
 /                         — Org Overview (VP level)
-/director/:id             — Director aggregate
-/manager/:id              — Manager aggregate
-/rep/:id                  — Rep detail
-/deal/:id                 — Deal evaluation detail
+/director/:id             — Director aggregate + cross-team heatmap
+/manager/:id              — Manager aggregate + team leaderboard + scatter plot
+/rep/:id                  — Rep detail + coaching export + audio player
+/deal/:id                 — Deal evaluation detail + MEDDPICC status
 /call/:id                 — Single call detail
 /settings/prompt          — Prompt editor
 /settings/team            — Team management
+/settings/segments        — Segment configuration (RevOps)
+/settings/pillars         — Pillar weight configuration (Enablement)
+/settings/plays           — Priority play configuration (Sales Leadership)
+/settings/meddpicc        — MEDDPICC stage requirements (RevOps)
 /settings/sync            — Sync status and triggers
+/analytics/rubric         — Rubric effectiveness analytics (Enablement)
 ```
 
 ## Wireframe Descriptions
@@ -174,13 +197,23 @@ A web-based dashboard that surfaces coaching insights at every level of the org 
 ```
 
 ## Acceptance Criteria
-- [ ] Org overview displays correct aggregate scores
+- [ ] Org overview displays correct aggregate scores with pillar heatmap
 - [ ] Drill-down from org → director → manager → rep → deal → call works
 - [ ] Weekly and monthly toggle changes chart bucketing
 - [ ] Date range picker filters all data
-- [ ] Trend charts render with correct data points
+- [ ] Segment filter works on all aggregate views
+- [ ] Trend charts render with correct data points and pillar overlays
+- [ ] Pillar heatmap correctly color-codes by scoring band
+- [ ] Call volume vs. score scatter plot renders correctly
+- [ ] Team leaderboard shows ranked reps with sparklines
+- [ ] Coaching export page renders the 5-section structured document
+- [ ] Audio player plays TTS coaching with section navigation and speed control
+- [ ] Manager coaching notes field allows adding/editing notes per rep
+- [ ] Director cross-team heatmap shows pillar scores across teams
+- [ ] VP segment strategy dashboard shows per-segment performance
 - [ ] Prompt editor allows editing and saves new versions
 - [ ] Role-based visibility is enforced (rep sees only own data)
+- [ ] Enablement and RevOps settings pages are accessible by correct roles
 - [ ] Pages load under 2 seconds
 - [ ] Breadcrumb navigation works at all levels
 - [ ] Top/bottom rep lists are accurate
