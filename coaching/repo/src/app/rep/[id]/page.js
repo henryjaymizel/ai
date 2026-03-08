@@ -7,6 +7,7 @@ import TrendChart from '../../../components/TrendChart';
 import PillarBar from '../../../components/PillarBar';
 import CoachingExport from '../../../components/CoachingExport';
 import AudioPlayer from '../../../components/AudioPlayer';
+import WeeklyPillarHeatmap from '../../../components/WeeklyPillarHeatmap';
 import { getMember, getRepScores, getRepDeals, getRepLatest, getBand } from '../../../lib/mock-data';
 import { formatScore, bandColor, bandLabel, formatCurrency, segmentLabel } from '../../../lib/utils';
 
@@ -49,6 +50,8 @@ export default function RepView({ params }) {
           />
         )}
       </div>
+
+      <WeeklyPillarHeatmap scores={scores} />
 
       <div className="grid md:grid-cols-2 gap-4">
         <TrendChart data={scores} showPillars />
